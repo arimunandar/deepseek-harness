@@ -1,0 +1,27 @@
+# Opt-in overlay that signs in to a pi-ai catalog provider at boot — by default
+# Anthropic's "Claude Pro/Max" subscription flow.
+# This file is a PATCH OVERLAY over a profile (its bundle layers), not a tree:
+# `dsh --patch` applies it as one more sibling patch list at the same include
+# level. A patch replaces the targeted row's whole `config`.
+
+- insert:
+    # ctx.authorization — the seam that owns credential sign-in conversations.
+    # No shipped bundle mounts it, and @deepseek-ai/dsh-llm-pi-ai registers its
+    # per-provider login flows inside ctx.inject(['authorization'], …), so
+    # without this row those flows never exist and nothing can sign in.
+    - id: authorization
+      name: '@deepseek-ai/dsh-authorization'
+
+    # The caller for one of those flows. A patch file contributes configuration
+    # but does not move the directory the loader resolves module paths from, so
+    # this relative specifier resolves against the booted profile's directory:
+    # copy anthropic-login.mjs into $DSH_HOME/profiles/<profile>/ first.
+    - id: anthropic-login
+      name: './anthropic-login.mjs'
+      config:
+        # pi-ai catalog provider id, which is also the credential record id.
+        provider: anthropic
+        # 'oauth' is the subscription login; 'api-key' types a key instead.
+        method: oauth
+        # true re-runs the sign-in even when a credential is already stored.
+        force: false
