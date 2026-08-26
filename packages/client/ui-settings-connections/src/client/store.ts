@@ -105,6 +105,8 @@ export interface ConnectionCardActions {
   onDisconnect: () => void
   /** Show or hide this card's detail. */
   onExpand: (next: boolean) => void
+  /** Store the key this backend is reached by. */
+  onSaveKey: (value: string) => void
 }
 
 /**
@@ -126,6 +128,7 @@ export function cardActions(controller: ConnectionsStore, id: string): Connectio
     onActivate: () => { void controller.activate(id) },
     onDisconnect: () => { controller.confirm(id) },
     onExpand: (next) => { controller.expand(next ? id : null) },
+    onSaveKey: (value) => { void controller.saveKey(id, value) },
   }
 }
 
@@ -214,6 +217,18 @@ export class ConnectionsStore {
       if (conversation !== undefined) conversation.prompt = null
     })
     await this.remote.connections.answer(id, promptId, value)
+  }
+
+  /**
+   * Store the key one backend is reached by, and re-read.
+   * @param id - connection id.
+   * @param value - the key as the person typed it.
+   * @returns fulfillment after the write lands and the directory is re-read.
+   */
+  async saveKey(id: string, value: string): Promise<void> {
+    const result = await this.remote.connections.saveKey(id, value)
+    this.recordFailure(id, result)
+    await this.load()
   }
 
   /**

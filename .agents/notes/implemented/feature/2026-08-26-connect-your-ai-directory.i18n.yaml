@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-26-connect-your-ai-directory.md
-2026-08-26-connect-your-ai-directory.md: cc808422fcb8b8b032dfc6cfa70b40fe814b45d9
-2026-08-26-connect-your-ai-directory.zh.md: ccd93a2830cc5e52acee9b8d845ca035b0a2664f
+2026-08-26-connect-your-ai-directory.md: 49c004168d228fd6c3b87f02bc52b086fa0a2414
+2026-08-26-connect-your-ai-directory.zh.md: d69092f4b6c6a56f06137bfd24cadf7014a1ce7c

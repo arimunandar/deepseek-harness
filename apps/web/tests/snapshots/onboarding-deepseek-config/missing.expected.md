@@ -1,8 +1,24 @@
-- dialog "添加一个 API Key 开始使用":
-  - heading "添加一个 API Key 开始使用" [level=2]
-  - paragraph: 配置 DeepSeek 官方模型，即可开始使用。
+- heading "先连接一个 AI" [level=2]
+- paragraph: 连接之后才能开始对话。可以稍后在“设置 → 连接”里更改。
+- region "Claude":
+  - heading "Claude" [level=3]
+  - paragraph: Use Claude models with your Anthropic account.
+  - text: 未连接
+  - paragraph: 检测到你已经安装了它的官方命令行工具，用同一个账号登录即可。
+  - button "连接"
+- region "Codex":
+  - heading "Codex" [level=3]
+  - paragraph: Use OpenAI models with your ChatGPT account.
+  - text: 未连接
+  - paragraph: 检测到你已经安装了它的官方命令行工具，用同一个账号登录即可。
+  - button "连接"
+- region "DeepSeek":
+  - heading "DeepSeek" [level=3]
+  - paragraph: Use DeepSeek models with an API key from platform.deepseek.com.
+  - text: 需要处理 正在使用
+  - paragraph: 这个后端需要一个 API 密钥。
   - text: API 密钥
   - textbox "API 密钥":
-    - /placeholder: 输入 API 密钥
-  - button "稍后配置"
-  - button "保存并继续" [disabled]
+    - /placeholder: 粘贴你的密钥
+  - button "保存" [disabled]
+- button "稍后再说"

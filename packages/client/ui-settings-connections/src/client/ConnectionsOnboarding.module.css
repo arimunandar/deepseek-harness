@@ -1,0 +1,46 @@
+/* The first-run stage: the same cards the settings page shows, on their own
+   surface, sized so three of them fit without the stage becoming a scroller. */
+.step {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  width: min(620px, 92vw);
+  max-height: 84vh;
+  overflow-y: auto;
+  padding: 28px;
+  border-radius: 16px;
+  background: var(--dsw-alias-bg-module-platform);
+
+  /* The cards scroll inside this stage, an elevated surface, so the scrollbar
+     indirection is rebound here rather than on the scrolling child: the
+     elevation choice belongs with the surface and inherits down (see ui-theme
+     styles/scrollbar.css for the contract). */
+  --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
+  --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
+}
+
+.heading {
+  margin: 0;
+  font-size: 18px;
+  line-height: 26px;
+  font-weight: 600;
+  color: var(--dsw-alias-label-primary);
+}
+
+.body {
+  margin: 0;
+  font-size: 13px;
+  line-height: 20px;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+.cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.footer {
+  display: flex;
+  justify-content: flex-end;
+}

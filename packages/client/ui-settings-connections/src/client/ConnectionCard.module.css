@@ -223,3 +223,9 @@
   line-height: 16px;
   color: var(--dsw-alias-label-tertiary);
 }
+
+/* Indented to the identity column like every other body row, so the field
+   belongs to this backend rather than to the card's chrome. */
+.keyField {
+  margin-left: 38px;
+}

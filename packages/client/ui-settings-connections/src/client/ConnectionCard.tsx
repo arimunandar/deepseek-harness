@@ -44,6 +44,8 @@ export interface ConnectionCardProps {
   onDisconnect: () => void
   /** Show or hide this card's detail. */
   onExpand: (next: boolean) => void
+  /** Store the key this backend is reached by. */
+  onSaveKey: (value: string) => void
 }
 
 /** The state word each status carries. */
@@ -165,6 +167,46 @@ function PromptForm({ prompt, t, onAnswer }: {
 }
 
 /**
+ * Render the key field for a backend reached by typing one.
+ *
+ * Save stays inert until there is something to send, and the field clears on
+ * submit: the value is write-only past this point, so leaving it on screen
+ * would show a secret nothing can read back.
+ * @param props - the copy and where the key goes.
+ * @returns the key form.
+ */
+function KeyForm({ t, onSaveKey }: {
+  t: (key: ConnectionsLocaleKey) => string
+  onSaveKey: (value: string) => void
+}): ReactNode {
+  const [typed, setTyped] = useState('')
+  const submit = (event: FormEvent): void => {
+    event.preventDefault()
+    if (typed.trim().length === 0) return
+    onSaveKey(typed)
+    setTyped('')
+  }
+  return (
+    <form className={css.prompt} onSubmit={submit}>
+      <label className={css.promptMessage} htmlFor="connection-key">{t('keyLabel')}</label>
+      <div className={css.promptRow}>
+        <input
+          id="connection-key"
+          className={css.promptField}
+          type="password"
+          autoComplete="off"
+          spellCheck={false}
+          placeholder={t('keyPlaceholder')}
+          value={typed}
+          onChange={(event) => { setTyped(event.target.value) }}
+        />
+        <Button variant="primary" type="submit" disabled={typed.trim().length === 0}>{t('keySave')}</Button>
+      </div>
+    </form>
+  )
+}
+
+/**
  * Render one connectable backend.
  * @param props - the row, its conversation, the copy, and every action.
  * @returns the card.
@@ -234,6 +276,12 @@ export function ConnectionCard(props: ConnectionCardProps): ReactNode {
 
       {conversation?.failure != null && !busy && (
         <p className={css.failure} role="alert">{conversation.failure}</p>
+      )}
+
+      {row.acceptsKey && row.status !== 'connected' && !busy && (
+        <div className={css.keyField}>
+          <KeyForm t={t} onSaveKey={props.onSaveKey} />
+        </div>
       )}
 
       <footer className={css.actions}>
