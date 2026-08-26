@@ -20,6 +20,7 @@ const CONNECTIONS: Config['connections'] = {
     defaultModel: 'claude-sonnet-5',
     settingsNs: 'llm-pi-ai',
     routePath: ['providers', 'anthropic'],
+    profile: { displayName: 'Claude' },
     vendorCli: 'definitely-not-an-installed-command',
   },
   deepseek: {
@@ -211,20 +212,58 @@ describe('signing in', () => {
 
     expect(outcome).toEqual({ status: 'connected' })
     expect(credentials.records.has(CLAUDE_KEY)).toBe(true)
-    expect(settings.sections.get('llm-pi-ai')).toEqual({ providers: { anthropic: {} } })
+    expect(settings.sections.get('llm-pi-ai')).toEqual({ providers: { anthropic: { displayName: 'Claude' } } })
     expect(changed).toHaveBeenCalled()
   })
 
-  it('leaves an existing route exactly as it was', async () => {
+  it('creates the route under the name the connection is known by', async () => {
+    const { ctx, settings } = await harness()
+    ctx.authorization.registerFlow(signInFlow(ctx))
+
+    await ctx.connections.connect('claude', 'oauth')
+
+    // Without this the Models page shows pi-ai's route key, `anthropic`, for
+    // the connection a person made as Claude.
+    expect(settings.sections.get('llm-pi-ai'))
+      .toEqual({ providers: { anthropic: { displayName: 'Claude' } } })
+  })
+
+  it('names an existing route that never had one, keeping everything else', async () => {
     const { ctx, settings } = await harness()
     settings.sections.set('llm-pi-ai', { providers: { anthropic: { baseURL: 'https://tuned.example' } } })
     ctx.authorization.registerFlow(signInFlow(ctx))
 
     await ctx.connections.connect('claude', 'oauth')
 
+    expect(settings.sections.get('llm-pi-ai')).toEqual({
+      providers: { anthropic: { baseURL: 'https://tuned.example', displayName: 'Claude' } },
+    })
+  })
+
+  it('never renames a route somebody already named', async () => {
+    const { ctx, settings } = await harness()
+    settings.sections.set('llm-pi-ai', { providers: { anthropic: { displayName: 'Work account' } } })
+    ctx.authorization.registerFlow(signInFlow(ctx))
+
+    await ctx.connections.connect('claude', 'oauth')
+
+    // A name in the document was chosen by somebody; the product label loses.
     expect(settings.writes).toEqual([])
     expect(settings.sections.get('llm-pi-ai'))
-      .toEqual({ providers: { anthropic: { baseURL: 'https://tuned.example' } } })
+      .toEqual({ providers: { anthropic: { displayName: 'Work account' } } })
+  })
+
+  it('leaves an existing route alone when the connection carries no name', async () => {
+    const { ctx, settings } = await harness({
+      ...CONNECTIONS,
+      claude: { ...CONNECTIONS['claude'], profile: {} } as Config['connections'][string],
+    })
+    settings.sections.set('llm-pi-ai', { providers: { anthropic: { baseURL: 'https://tuned.example' } } })
+    ctx.authorization.registerFlow(signInFlow(ctx))
+
+    await ctx.connections.connect('claude', 'oauth')
+
+    expect(settings.writes).toEqual([])
   })
 
   it('writes no route for a connection whose adapter registers its own', async () => {
@@ -450,7 +489,7 @@ describe('repairs', () => {
     await ctx.connections.finishSetup('claude')
     await ctx.connections.finishSetup('claude')
     expect(settings.writes).toHaveLength(1)
-    expect(settings.sections.get('llm-pi-ai')).toEqual({ providers: { anthropic: {} } })
+    expect(settings.sections.get('llm-pi-ai')).toEqual({ providers: { anthropic: { displayName: 'Claude' } } })
   })
 
   it('makes one connection the default for new conversations', async () => {

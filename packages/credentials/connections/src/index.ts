@@ -523,8 +523,42 @@ export class ConnectionsService extends TypertRemoteService {
     // already whatever that document says.
     if (settings === undefined) return
     const ns = settingsNamespace(config.settingsNs)
-    if (readPath(settings.get(ns), routePath) !== undefined) return
-    await settings.mutate(ns, [{ op: 'set', path: [...routePath], value: profile }])
+    const existing = readPath(settings.get(ns), routePath)
+    if (existing === undefined) {
+      await settings.mutate(ns, [{ op: 'set', path: [...routePath], value: profile }])
+      return
+    }
+    await this.ensureRouteName(ns, routePath, existing, profile)
+  }
+
+  /**
+   * Give an existing route the display name this connection is known by.
+   *
+   * A route key is an adapter's own vocabulary — `anthropic`, `openai-codex` —
+   * and it is what a configuration surface shows when a profile names nothing
+   * else. Someone who connected "Claude" here should not have to recognize it
+   * as "anthropic" on the Models page.
+   *
+   * Only an absent name is filled. A name already in the document was chosen by
+   * somebody, and this is the one field where the product label and a
+   * deliberate override collide, so the deliberate one wins.
+   * @param ns - the namespace holding the route.
+   * @param routePath - path from that namespace's section root to the profile.
+   * @param existing - the profile as the document currently holds it.
+   * @param profile - the profile this connection would create, carrying its name.
+   */
+  private async ensureRouteName(
+    ns: ReturnType<typeof settingsNamespace>,
+    routePath: readonly string[],
+    existing: unknown,
+    profile: Record<string, unknown>,
+  ): Promise<void> {
+    const displayName = profile['displayName']
+    if (typeof displayName !== 'string' || displayName.length === 0) return
+    if (!isRecord(existing) || existing['displayName'] !== undefined) return
+    await this.ctx.get('settings')?.mutate(ns, [
+      { op: 'set', path: [...routePath, 'displayName'], value: displayName },
+    ])
   }
 }
 

@@ -58,6 +58,8 @@ This is a readability bound, not a redaction guarantee: a provider that puts a s
 
 A stored credential no route reads is not a connection anyone can use, and asking a person to press a second button for it would be asking them about plumbing. So `connect()` follows an authorized attempt with the route write, skipped when a route already exists — a reconnect never overwrites a profile someone tuned. A deployment with no settings provider composes its routes in `cordis.yml`, where this package has nothing to write and the route is already whatever that document says.
 
+The route it creates carries the connection's own name. A route key is the adapter's vocabulary — `anthropic`, `openai-codex` — and it is what a configuration surface shows when a profile names nothing else, so somebody who connected "Claude" would otherwise have to recognize it as "anthropic" on the Models page. An existing route missing that name gets it on the next `connect()` or `finishSetup()`; a route already carrying one keeps it, because a name in the document was chosen by somebody and the product label loses to a deliberate override.
+
 ## Model Experience
 
 Indirectly, through the backend a person connects here, which owns every model-visible surface once it is selected.
