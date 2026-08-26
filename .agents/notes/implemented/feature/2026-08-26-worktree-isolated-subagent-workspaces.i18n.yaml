@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-26-worktree-isolated-subagent-workspaces.md
-2026-08-26-worktree-isolated-subagent-workspaces.md: 0e9d2a050e1cdda6f9c8b10cd50acfd7488302ed
-2026-08-26-worktree-isolated-subagent-workspaces.zh.md: 3931fecdb54eea6970c90f978f6ed1c78cee5865
+2026-08-26-worktree-isolated-subagent-workspaces.md: 0131358dd047b6b55a69b66d37548b8526c5e5c2
+2026-08-26-worktree-isolated-subagent-workspaces.zh.md: 7cea9357399dc455ec9476dbe9c9aeb5b0d50436

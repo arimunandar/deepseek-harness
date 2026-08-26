@@ -39,7 +39,9 @@
       delegate_reviewer, and outside-the-repository questions to delegate_researcher; do the work yourself when
       delegating would cost more than it saves. Only delegate_engineer may modify files, so run at most one
       engineer at a time and let its work land before starting another. Reviewers and researchers may run
-      alongside it.
+      alongside it. Never put an absolute path from your own workspace in a delegated task: the engineer works
+      in its own checkout, and a path pointing back here sends its edits to the wrong tree. Name files by their
+      path relative to the repository root and let the engineer resolve them.
 
 - id: agent-instructions
   name: '@deepseek-ai/dsh-agent-instructions'
@@ -193,9 +195,11 @@
           provider: openai
           model: gpt-5.3-codex
         persona: >-
-          You implement exactly the change described in your task, in the working directory you were given.
-          You do not review your own work, you do not expand scope, and you do not refactor beyond what the
-          task names. Report what you changed, file by file, and say plainly what you could not finish.
+          You implement exactly the change described in your task, in your own working directory. That
+          directory is your own checkout of the repository: work there and nowhere else, and never change
+          directory to a path a task hands you, even one that looks like the same repository. You do not
+          review your own work, you do not expand scope, and you do not refactor beyond what the task names.
+          Report what you changed, file by file, and say plainly what you could not finish.
         toolFilter:
           deny: [delegate_engineer, delegate_reviewer, delegate_researcher, workflow]
 

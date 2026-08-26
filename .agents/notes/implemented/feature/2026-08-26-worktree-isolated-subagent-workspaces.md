@@ -1,4 +1,4 @@
-# Agent Note: worktree isolation is a child's session cwd, not a rule in its prompt
+# Agent Note: worktree isolation is a child's session cwd, and only as strong as the permission mode
 
 Status: implemented
 
@@ -14,7 +14,9 @@ That is not a coordination problem a prompt can solve. Whether two agents clobbe
 
 `dsh-subagent-worktree-in-process` registers a `worktree` provider: the spawn provider with the child's workspace changed. `start()` resolves the delegating session's cwd to its repository root, reads that repository's `HEAD`, adds a worktree on a fresh `dsh/subagent/<uuid>` branch at that commit, and hands the path to the shared driver as the child's session cwd.
 
-The session cwd is the whole mechanism. `ctx.sandboxPolicy` already derives its `workspace-write` boundary from `session.header.cwd`, and the filesystem tools and shell spawns resolve against the same per-call policy — so isolation follows from one durable session fact rather than from anything the child is asked to respect. The driver change is correspondingly small: `InProcessRunOptions` gains a `cwd` that shadows the inherited parent cwd for that child alone.
+The session cwd is the whole mechanism. `ctx.sandboxPolicy` already derives its `workspace-write` boundary from `session.header.cwd`, and the filesystem tools and shell spawns resolve against the same per-call policy, so isolation follows from one durable session fact. The driver change is correspondingly small: `InProcessRunOptions` gains a `cwd` that shadows the inherited parent cwd for that child alone.
+
+That also fixes the limit: isolation is exactly as strong as the permission mode. Under `workspace-write` the boundary is enforced. Under a bypass mode nothing enforces a cwd, and a live run confirmed the consequence — a child handed the delegating workspace's absolute path in its task ran `cd <path> && …` through `bash` and wrote there. The lead persona now forbids putting an absolute path in a delegated task and the engineer persona forbids following one, because the agent most likely to hand a child the wrong tree is its own lead.
 
 Teardown keeps work. Disposal disposes the child first, then retires the worktree only when it is empty: `git status --porcelain` silent and no commit added past the base commit. Otherwise the worktree is retained and the Host log names its path and branch. A `git status` that could not be produced counts as work, because refusing to remove a directory whose state is unknown is the only safe direction.
 
@@ -43,5 +45,7 @@ Retained worktrees accumulate under the configured `root`. Nothing collects them
 ## Testing
 
 `packages/subagent/subagent-worktree-in-process/tests/subagent-worktree-in-process.spec.ts` drives the real backend against real git — a temporary repository per case, the real local subprocess provider, a real loop, a scripted model. Nothing stubs git, because what this package owns is exactly the sequence of git invocations and the decision they feed. It pins the child's session cwd inside the configured root and as a checkout of the parent's HEAD; removal when clean; retention on an uncommitted edit; retention on a commit with a clean status, which is the case only the base-commit count distinguishes; refusal without a repository and without any cwd; no worktree left behind when the start aborts; the continuable path refused; and provider withdrawal on fiber disposal.
+
+Both halves of the permission-mode limit were verified by hand against a running `dsh web` with a real Claude Sonnet 4.5 engineer and a throwaway repository. Under `workspace-write` the engineer's edit landed in its worktree, the delegating tree was untouched, and the worktree was retained on its branch because it held work. Under `Full access` the same delegation wrote to the delegating tree, which is what the corrected README and personas now address.
 
 `tests/loader-composition.e2e.ts` boots the headless app through the real Loader over a test-only `cordis.yml`, with the isolated cwd prepared as a real repository. It asserts the persisted child session header's `cwd`, not model text: the workspace decision is durable in the session log, while a mock's answer would only report what it was told to say.

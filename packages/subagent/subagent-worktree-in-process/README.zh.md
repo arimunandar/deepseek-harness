@@ -6,7 +6,9 @@ worktree provider 在当前进程中创建一个全新的子 `Agent`，并给它
 
 ## 工作区边界
 
-`start(request)` 把分派会话的 cwd 解析到它的仓库根，读取该仓库的 `HEAD`，然后在该提交上以一个新分支添加 worktree。子 Agent 的会话头部携带这个 worktree 路径，而会话 cwd 正是每个执行性能力所读取的东西：[`ctx.sandboxPolicy`](../../sandbox/sandbox-policy/README.zh.md) 以它作为 `workspace-write` 边界，文件系统工具以它解析相对路径，shell 也从它启动。因此隔离是子 Agent 会话的一个属性，不是靠它的提示词去遵守的一条规则。
+`start(request)` 把分派会话的 cwd 解析到它的仓库根，读取该仓库的 `HEAD`，然后在该提交上以一个新分支添加 worktree。子 Agent 的会话头部携带这个 worktree 路径，而会话 cwd 正是每个执行性能力所读取的东西：[`ctx.sandboxPolicy`](../../sandbox/sandbox-policy/README.zh.md) 以它作为 `workspace-write` 边界，文件系统工具以它解析相对路径，shell 也从它启动。
+
+因此隔离的强度等于会话权限模式的强度，不会更强。在 `workspace-write` 下边界是被强制的：拿到自己 worktree 之外绝对路径的子 Agent 会被拒绝。在 bypass 模式下不存在边界，于是一个被告知了另一个目录路径的子 Agent——最可能是它自己的分派方告知的——可以 `cd` 过去并写入。worktree 仍然决定子 Agent 从哪里*开始*、它的相对工作落在哪里；它不约束一个其部署已经关掉约束的子 Agent。
 
 在 `HEAD` 上开分支（而不是复制父级目录）带来两个后果。子 Agent **看不到**父级未提交的工作，所以依赖那些内容的任务必须把它们写进 prompt。子 Agent 的成果落在一个分支上，而不是父级的工作树里，所以想要这份工作的调用方需要 merge 或 cherry-pick。
 
@@ -75,4 +77,5 @@ worktree 声明 `{ outputSchema: true, depthLimit: true, toolFilter: true, perso
 - **分支不经由 seam 上报** —— 被保留的 worktree 会在 Host 日志中被点名，也可用 `git worktree list` 发现，但没有任何结果字段携带它，所以必须 merge 这份工作的父级只能依赖子 Agent 自己说清它落在哪里。
 - **被保留的 worktree 会堆积** —— 这里没有任何东西去回收一个曾持有工作的 worktree。由评审或 merge 该分支的人来移除它；大量分派的部署应当预期所配置的 `root` 会增长。
 - **仅支持 one-shot** —— 出于上文的归属原因，continuable 子 Agent 无法获得 worktree 隔离。同时需要隔离与 continuable 对话的角色，今天没有可用的组合。
+- **bypass 权限模式会击穿它** —— worktree 就是会话 cwd，而让一个 cwd 成为边界的是沙箱策略。已验证：在 `Full access` 下，一个子 Agent 在任务里被告知了分派方工作区的绝对路径，通过 `bash` 执行 `cd <path> && …` 并写入了那里。想要隔离被强制的部署，应让其分派会话运行在 `workspace-write` 下。
 - **父级未提交的工作不可见** —— 在 `HEAD` 上开分支正是配置得以廉价、子 Agent 的基线得以可复现的原因，但关于进行中工作的任务必须把它写进 prompt。

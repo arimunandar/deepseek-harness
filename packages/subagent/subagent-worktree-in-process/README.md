@@ -6,7 +6,9 @@ The worktree provider creates a fresh child `Agent` in the current process, in a
 
 ## Workspace boundary
 
-`start(request)` resolves the delegating session's cwd to its repository root, reads that repository's `HEAD`, and adds a worktree on a fresh branch at that commit. The child's session header carries the worktree path, and the session cwd is what every enforcing capability reads: [`ctx.sandboxPolicy`](../../sandbox/sandbox-policy/README.md) makes it the `workspace-write` boundary, the filesystem tools resolve relative paths against it, and shell spawns start there. Isolation is therefore a property of the child's session, not a rule its prompt is asked to follow.
+`start(request)` resolves the delegating session's cwd to its repository root, reads that repository's `HEAD`, and adds a worktree on a fresh branch at that commit. The child's session header carries the worktree path, and the session cwd is what every enforcing capability reads: [`ctx.sandboxPolicy`](../../sandbox/sandbox-policy/README.md) makes it the `workspace-write` boundary, the filesystem tools resolve relative paths against it, and shell spawns start there.
+
+Isolation is therefore as strong as the session's permission mode, and no stronger. Under `workspace-write` the boundary is enforced: a child handed an absolute path outside its worktree is refused. Under a bypass mode there is no boundary, so a child that is told another directory's path — by its own delegating agent, most likely — can `cd` there and write. The worktree still decides where the child *starts* and where its relative work lands; it does not confine a child whose deployment has switched confinement off.
 
 Two facts follow from branching at `HEAD` rather than copying the parent's directory. The child does **not** see the parent's uncommitted work, so a task that depends on it must carry it in the prompt. And the child's result lands on a branch, not in the parent's tree, so a caller that wants the work merges or cherry-picks it.
 
@@ -75,4 +77,5 @@ Append-only; newly visible content follows the reusable request prefix and does 
 - **The branch is not reported through the seam** — a retained worktree is named in the Host log and discoverable with `git worktree list`, but no result field carries it, so a parent that must merge the work depends on the child stating where it landed.
 - **Retained worktrees accumulate** — nothing here collects a worktree that held work. Whoever reviews or merges the branch removes it; a deployment that delegates heavily should expect the configured `root` to grow.
 - **One-shot only** — continuable children cannot be worktree-isolated, for the ownership reason above. A role that needs both isolation and a continuable conversation has no composition today.
+- **A bypass permission mode defeats it** — the worktree is the session cwd, and the sandbox policy is what makes a cwd a boundary. Verified: under `Full access` a child was handed the delegating workspace's absolute path in its task, ran `cd <path> && …` through `bash`, and wrote there. A deployment that wants isolation enforced runs its delegating sessions under `workspace-write`.
 - **The parent's uncommitted work is invisible** — branching at `HEAD` is what makes provisioning cheap and the child's base reproducible, but a task about work in progress must carry it in the prompt.

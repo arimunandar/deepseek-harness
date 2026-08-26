@@ -1,4 +1,4 @@
-# Agent Note：隔离是子 Agent 的会话 cwd，不是它提示词里的一条规则
+# Agent Note：隔离是子 Agent 的会话 cwd，其强度只等于权限模式的强度
 
 Status: implemented
 
@@ -14,7 +14,9 @@ Status: implemented
 
 `dsh-subagent-worktree-in-process` 注册一个 `worktree` provider：就是 spawn provider，只改了子 Agent 的工作区。`start()` 把分派会话的 cwd 解析到它的仓库根，读取该仓库的 `HEAD`，在该提交上以新分支 `dsh/subagent/<uuid>` 添加 worktree，并把该路径作为子 Agent 的会话 cwd 交给共享 driver。
 
-会话 cwd 就是全部机制。`ctx.sandboxPolicy` 本来就从 `session.header.cwd` 推导它的 `workspace-write` 边界，而文件系统工具与 shell 也按同一份每次调用的策略解析——于是隔离出自一个持久的会话事实，而不是出自任何要求子 Agent 去遵守的东西。driver 的改动因此很小：`InProcessRunOptions` 新增一个 `cwd`，仅对该子 Agent 遮蔽其继承来的父级 cwd。
+会话 cwd 就是全部机制。`ctx.sandboxPolicy` 本来就从 `session.header.cwd` 推导它的 `workspace-write` 边界，而文件系统工具与 shell 也按同一份每次调用的策略解析，于是隔离出自一个持久的会话事实。driver 的改动因此很小：`InProcessRunOptions` 新增一个 `cwd`，仅对该子 Agent 遮蔽其继承来的父级 cwd。
+
+这同时界定了它的上限：隔离的强度恰好等于权限模式的强度。在 `workspace-write` 下边界是被强制的。在 bypass 模式下没有任何东西强制一个 cwd，而一次真实运行确认了后果——一个在任务里被告知分派方工作区绝对路径的子 Agent，通过 `bash` 执行 `cd <path> && …` 并写入了那里。lead persona 现在禁止把绝对路径写进被分派的任务，engineer persona 也禁止跟随这样的路径，因为最可能把错误工作树交给子 Agent 的，正是它自己的 lead。
 
 拆除会保住工作。释放会先释放子 Agent，然后仅在 worktree 为空时退役它：`git status --porcelain` 无输出，且相对基线提交没有新增提交。否则 worktree 被保留，且 Host 日志点名其路径与分支。一次无法产出结果的 `git status` 也算作有工作，因为拒绝移除一个状态未知的目录是唯一安全的方向。
 
@@ -43,5 +45,7 @@ Status: implemented
 ## 测试
 
 `packages/subagent/subagent-worktree-in-process/tests/subagent-worktree-in-process.spec.ts` 用真实 git 驱动真实后端——每个用例一个临时仓库、真实的本地 subprocess provider、真实的循环、一个脚本化模型。没有任何东西 stub git，因为本包所拥有的恰恰就是那串 git 调用及其所喂养的决策。它钉住：子 Agent 的会话 cwd 位于所配置的 root 之内、且是父级 HEAD 的检出；干净时被移除；有未提交改动时被保留；有提交但状态干净时被保留——这正是只有基线提交计数才能区分的那种情形；没有仓库、以及完全没有 cwd 时的拒绝；启动被中止时不留下任何 worktree；continuable 路径被拒绝；以及 fiber 释放时 provider 被撤回。
+
+权限模式这条上限的两半都以真实 Claude Sonnet 4.5 engineer 与一个一次性仓库、对运行中的 `dsh web` 手工验证过。在 `workspace-write` 下，engineer 的改动落在它的 worktree 里，分派方工作树未被触碰，且该 worktree 因持有工作而连同分支被保留。在 `Full access` 下，同一次分派写入了分派方的工作树——这正是修正后的 README 与 persona 所针对的问题。
 
 `tests/loader-composition.e2e.ts` 经由真实 Loader、以一份仅用于测试的 `cordis.yml` 启动 headless 应用，并把隔离出的 cwd 预备成一个真实仓库。它断言的是持久化子 Agent 会话头部的 `cwd`，不是模型文本：工作区决策在会话日志里是持久的，而一个 mock 的回答只会复述别人让它说的话。
