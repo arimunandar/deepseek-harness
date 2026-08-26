@@ -348,6 +348,14 @@ interface SubagentResult {
    * delegating session's log.
    */
   readonly usage?: SubagentReportedUsage
+  /**
+   * The structured failure that ended a run whose `stopReason` is `error`, when
+   * the child's turn recorded one. Present so a Consumer can route on
+   * `failure.code` instead of parsing {@link diagnostic}, which is safe display
+   * text and not a machine surface. Absent for every other stop reason, and for
+   * an `error` a provider could not attribute to one failure.
+   */
+  readonly failure?: LlmFailure
   /** Why the run ended. A non-`completed` reason means `output` may be partial. */
   readonly stopReason: SubagentStopReason
 }

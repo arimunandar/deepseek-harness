@@ -238,11 +238,16 @@ function readResult(
   // Disposal can tear the owner down before the loop records its ordinary
   // `aborted` end, yielding `disposed` instead.
   const stopReason: SubagentStopReason = cancelled && recorded !== 'completed' ? 'aborted' : recorded
+  // The turn's own structured failure, carried through so a Consumer routes on
+  // a code rather than on display text. Only an `error` end records one, and a
+  // cancellation that overrode it is no longer describing why the run failed.
+  const end = lastEnd?.data.reason
+  const failure = stopReason === 'error' && end?.kind === 'error' ? end.error : undefined
   if (structured !== undefined) {
     if (structured.captured !== undefined) {
-      return { output, structured: structured.captured.value, stopReason }
+      return { output, structured: structured.captured.value, ...failure === undefined ? {} : { failure }, stopReason }
     }
     if (stopReason === 'completed') return { output, stopReason: cancelled ? 'aborted' : 'error' }
   }
-  return { output, stopReason }
+  return { output, ...failure === undefined ? {} : { failure }, stopReason }
 }

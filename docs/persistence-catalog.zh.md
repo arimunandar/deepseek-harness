@@ -712,6 +712,23 @@ export type SessionEvent<T extends SessionEventType = SessionEventType> = {
 
 来源：[`packages/subagent/subagent/src/descriptor.ts:37`](../packages/subagent/subagent/src/descriptor.ts)
 
+<a id="subagentfallback--log-only"></a>
+
+#### `subagent/fallback` — log-only
+
+```ts persistence-catalog
+/**
+ * One route substitution inside a single delegation, appended to the
+ * DELEGATING session before the replacement child starts. Log-only: it
+ * carries no `surfaceOp`, never enters model history, and survives
+ * compaction. At most one per delegation — a fallback that also fails is
+ * final, so there is no chain to record.
+ */
+'subagent/fallback': SubagentFallback
+```
+
+来源：[`packages/subagent/subagent/src/fallback.ts:27`](../packages/subagent/subagent/src/fallback.ts)
+
 <a id="subagentusage--log-only"></a>
 
 #### `subagent/usage` — log-only

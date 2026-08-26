@@ -2911,6 +2911,29 @@ export interface Config {
    */
   agentOptions?: AgentOptions
   /**
+   * Second route to start one more child on when the first child's run failed
+   * for a reason about the ROUTE rather than the task, and that child produced
+   * nothing. Omission disables fallback entirely.
+   *
+   * The narrow precondition is what makes a restart safe: a child refused
+   * before its first provider request has done no work, so repeating it cannot
+   * repeat an effect. See {@link fallbackOnCodes} for which failures qualify.
+   */
+  fallbackAgentOptions?: AgentOptions
+  /**
+   * Failure codes that qualify for {@link fallbackAgentOptions}. The default set
+   * is the codes a route raises BEFORE any provider request happens, so a
+   * restart cannot repeat a side effect: `NO_ADAPTER` (no adapter for the
+   * route), `UNKNOWN_MODEL`, `MISSING_CREDENTIAL`, `INVALID_CREDENTIAL`, and
+   * `UNSUPPORTED_REASONING_EFFORT`.
+   *
+   * A deployment may add mid-run codes such as `QUOTA`, `AUTH`, or
+   * `RATE_LIMIT`. Doing so accepts that a child which already called a tool can
+   * be started again and call it again: the seam reports no output for such a
+   * child, so nothing here can tell that case apart.
+   */
+  fallbackOnCodes?: string[]
+  /**
    * Per-child persona that shadows `deployment:persona`. Requires the
    * provider's `persona` capability; omission preserves the deployment persona.
    */

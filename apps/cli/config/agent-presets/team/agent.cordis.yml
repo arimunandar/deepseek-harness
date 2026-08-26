@@ -194,6 +194,14 @@
         agentOptions:
           provider: openai
           model: gpt-5.3-codex
+        # A route this deployment cannot serve is the common first-run failure —
+        # an OpenAI project without codex access, or a route with no credential
+        # — and it refuses the child before it acts, so one more start on the
+        # lead's own route costs nothing and salvages the delegation. Deleting
+        # this block makes such a delegation fail instead.
+        fallbackAgentOptions:
+          provider: deepseek-official
+          model: deepseek-v4-pro
         persona: >-
           You implement exactly the change described in your task, in your own working directory. That
           directory is your own checkout of the repository: work there and nowhere else, and never change
