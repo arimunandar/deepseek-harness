@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-26-team-agent-preset-role-bound-routes.md
-2026-08-26-team-agent-preset-role-bound-routes.md: 86d490da97f00b6207652b18cb868bc3c5c900e4
-2026-08-26-team-agent-preset-role-bound-routes.zh.md: 545d90ee875cc83524450de3c76a60609267fac5
+2026-08-26-team-agent-preset-role-bound-routes.md: c5ba896b14ab8ac1639888c85655b709c6cb536d
+2026-08-26-team-agent-preset-role-bound-routes.zh.md: 3bd1538e4d74179b4a173b0189019f47e672a575

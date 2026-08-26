@@ -62,4 +62,8 @@ Token accounting is complete here only because every role is in-process: `ctx.to
 
 The refreshed authoring goldens also pick up a `连接` settings-navigation row that was already missing from them on `master`; those three cases fail identically at `25f2f9cc42` without this change.
 
-No automated test covers a delegation call: the three routes are dormant until a deployment supplies `llm-pi-ai:` profiles, and a keyed test would assert the pi-ai adapter's behavior rather than this composition's. The route wiring was instead verified by hand against a running `dsh web` on a real DeepSeek key — the lead listed all three `delegate_*` tools and none of `subagent`, `subagent_fork`, or `ralph`, and a `delegate_reviewer` call produced the `NO_ADAPTER` failure above naming `anthropic`, which is what proves `agentOptions` reaches the child.
+No automated test covers a delegation call: the routes are dormant until a deployment supplies `llm-pi-ai:` profiles, and a keyed test would assert the pi-ai adapter's behavior rather than this composition's. The wiring was verified by hand instead, in two parts.
+
+On a deployment with no `llm-pi-ai:` section, a `delegate_reviewer` call produced the `NO_ADAPTER` failure above naming `anthropic`. On a deployment whose section declares `anthropic` (a keyless catalog route deferring to pi-ai's own credential store), the same call succeeded from a lead running a different vendor's model, and the child session's `request/header` records `provider: anthropic` with `model: claude-sonnet-4-5` five times beside `provider: spawn`, `origin: subagent`, and `delegationDepth: 1`.
+
+The child's own answer claimed a different model than it ran on. Read the route from `request/header`, never from what a child says it is: a model's self-report is not evidence about its route, and this child's was simply wrong.

@@ -62,4 +62,8 @@ Token 计量在这里之所以完整，只因为每个角色都在进程内：`c
 
 刷新后的 authoring golden 同时补上了一行 `连接` 设置导航，而它在 `master` 上就已经从 golden 中缺失；不带本次改动，这三个用例在 `25f2f9cc42` 上以完全相同的方式失败。
 
-没有自动化测试覆盖分派调用：三条路由在部署方提供 `llm-pi-ai:` profile 之前都处于休眠，而一个带密钥的测试断言的会是 pi-ai 适配器的行为，不是这个组合的行为。路由接线改为在一个真实 DeepSeek 密钥下、对运行中的 `dsh web` 手工验证：lead 列出了全部三个 `delegate_*` 工具，且没有 `subagent`、`subagent_fork` 或 `ralph`；一次 `delegate_reviewer` 调用产生了上文那个点名 `anthropic` 的 `NO_ADAPTER` 失败——这正是 `agentOptions` 确实抵达子 Agent 的证据。
+没有自动化测试覆盖分派调用：路由在部署方提供 `llm-pi-ai:` profile 之前都处于休眠，而一个带密钥的测试断言的会是 pi-ai 适配器的行为，不是这个组合的行为。接线改为手工验证，分两部分。
+
+在没有 `llm-pi-ai:` 区块的部署上，一次 `delegate_reviewer` 调用产生了上文那个点名 `anthropic` 的 `NO_ADAPTER` 失败。在其区块声明了 `anthropic`（一条无密钥的目录路由，交由 pi-ai 自己的凭据库处理）的部署上，同一次调用从一个跑着另一家厂商模型的 lead 成功发出，且子 Agent 会话的 `request/header` 五次记录了 `provider: anthropic` 与 `model: claude-sonnet-4-5`，旁边是 `provider: spawn`、`origin: subagent` 和 `delegationDepth: 1`。
+
+该子 Agent 自己的回答声称的模型与它实际运行的并不相同。路由要从 `request/header` 读，绝不要从子 Agent 自称的身份读：模型的自我报告不是关于其路由的证据，而这次它就是错的。
