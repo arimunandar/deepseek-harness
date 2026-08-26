@@ -7,6 +7,7 @@ export type AgentPresetSettingsKey =
   | 'presetStandardName' | 'presetStandardDescription'
   | 'presetCodeName' | 'presetCodeDescription'
   | 'presetMinimalName' | 'presetMinimalDescription'
+  | 'presetTeamName' | 'presetTeamDescription'
   | 'presetCordisName' | 'presetCordisDescription'
   | 'duplicate' | 'duplicateUnavailable' | 'delete' | 'presetId' | 'presetIdPlaceholder' | 'copyOf'
   | 'displayName' | 'displayNamePlaceholder'
@@ -43,6 +44,9 @@ export const en: Record<AgentPresetSettingsKey, string> = {
   presetMinimalName: 'Minimal mode',
   presetMinimalDescription:
     'Two-tool coding agent with persistent bash and str_replace_editor.',
+  presetTeamName: 'Team mode',
+  presetTeamDescription:
+    'A lead agent that delegates implementation, review, and research to three role agents, each running its own configured model route.',
   presetCordisName: 'Creator mode',
   presetCordisDescription:
     'Built for creating custom agent presets, with all Standard mode capabilities plus runtime inspection, plugin experiments, and preset-authoring guidance.',
@@ -104,6 +108,8 @@ export const zh: Record<AgentPresetSettingsKey, string> = {
   presetCodeDescription: '具备标准模式的全部能力，并通过 Code Mode SDK 呈现工具，让模型用一个 TypeScript 程序组合多步操作。',
   presetMinimalName: '极简模式',
   presetMinimalDescription: '仅提供持久 bash 与 str_replace_editor 的双工具编码 Agent。',
+  presetTeamName: '团队模式',
+  presetTeamDescription: '主导 Agent 将实现、评审与调研分派给三个角色子 Agent，每个角色运行各自配置的模型路由。',
   presetCordisName: '创造模式',
   presetCordisDescription: '用于创建自定义 Agent preset：具备标准模式的全部能力，并提供运行时检查、插件实验和 preset 创作指导。',
   duplicate: '复制',
@@ -170,6 +176,7 @@ const BUILT_IN_PRESET_KEYS: Readonly<Partial<Record<string, PresetLocaleKeys>>> 
   standard: { name: 'presetStandardName', description: 'presetStandardDescription' },
   code: { name: 'presetCodeName', description: 'presetCodeDescription' },
   minimal: { name: 'presetMinimalName', description: 'presetMinimalDescription' },
+  team: { name: 'presetTeamName', description: 'presetTeamDescription' },
   cordis: { name: 'presetCordisName', description: 'presetCordisDescription' },
 }
 

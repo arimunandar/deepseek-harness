@@ -216,10 +216,10 @@ describe('the shipped Web composition', () => {
     }
   })
 
-  it('supplies both shipped presets, and only those, from the system root', async () => {
+  it('supplies every shipped preset, and only those, from the system root', async () => {
     const listed = await ctx.agentPresets.list()
 
-    expect(listed.map(preset => preset.id).sort()).toEqual(['code', 'cordis', 'minimal', 'standard'])
+    expect(listed.map(preset => preset.id).sort()).toEqual(['code', 'cordis', 'minimal', 'standard', 'team'])
     expect(listed.every(preset => preset.trust === 'system')).toBe(true)
     expect(ctx.agentPresets.defaultId).toBe('standard')
   })
@@ -240,6 +240,27 @@ describe('the shipped Web composition', () => {
         'get_goal', 'interrupt_agent', 'job_kill', 'job_list', 'job_output', 'list_agents', 'ralph', 'read', 'read_image', 'send_message', 'skill',
         'subagent', 'subagent_fork', 'todo_write', 'update_goal', 'web_search',
         'workflow', 'write',
+      ])
+    } finally {
+      await handle.dispose()
+    }
+  })
+
+  it('composes three role-bound delegation tools and no generic one from `team`', async () => {
+    const handle = await ctx.agents.create({
+      sessionId: SessionId('preset-team'),
+      setup: agentCtx => ctx.agentPresets.mount(agentCtx, 'team').then(() => undefined),
+    })
+    try {
+      // The EXACT catalog for the same reason `standard` pins one. What this
+      // preset is FOR shows up as three absences: no `subagent`, no
+      // `subagent_fork`, and no `ralph` — a role's model, persona, and tool
+      // set are load-time facts, so any unrouted delegation path defeats them.
+      expect(toolNames(ctx, handle.agent).filter(name => name !== 'glob' && name !== 'grep')).toEqual([
+        'ask_user_question', 'bash', 'create_goal', 'delegate_engineer',
+        'delegate_researcher', 'delegate_reviewer', 'edit', 'exit_plan_mode',
+        'get_goal', 'interrupt_agent', 'job_kill', 'job_list', 'job_output', 'list_agents', 'read', 'read_image', 'send_message', 'skill',
+        'todo_write', 'update_goal', 'web_search', 'workflow', 'write',
       ])
     } finally {
       await handle.dispose()

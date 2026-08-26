@@ -4,6 +4,9 @@
     - button "通用设置":
       - img
       - text: 通用设置
+    - button "连接":
+      - img
+      - text: 连接
     - button "模型":
       - img
       - text: 模型
@@ -49,6 +52,16 @@
         - img
         - text: 查看
       - 'button "复制: 极简模式"':
+        - img
+        - text: 复制
+    - listitem:
+      - 'button "设为默认: 团队模式"':
+        - text: 团队模式 内置 主导 Agent 将实现、评审与调研分派给三个角色子 Agent，每个角色运行各自配置的模型路由。
+        - code: team
+      - 'button "查看: 团队模式"':
+        - img
+        - text: 查看
+      - 'button "复制: 团队模式"':
         - img
         - text: 复制
     - listitem:

@@ -1,0 +1,267 @@
+# The `team` agent preset: one lead agent that delegates to three role-bound
+# children, each running a different provider route.
+#
+# This file is an AGENT-PLANE composition and follows the same plane rules as
+# `../standard/agent.cordis.yml`: the roster mounts it ONCE under a standing
+# scope, every session naming it joins by scope parentage, and a service row
+# MUST sit inside a group carrying an `isolate` realm. The host composition
+# keeps the registries, the sandbox and approval stack, persistence, and the
+# model routes.
+#
+# What this preset adds over `standard` is the delegation section: instead of
+# one generic `subagent` tool the model chooses a ROLE, and the role decides
+# the child's provider route, persona, tool set, and delegation depth. A role
+# is therefore a load-time deployment decision, not something the model can
+# talk its way around — `dsh-tool-subagent` binds one policy per instance, so
+# another model or persona means another named tool.
+#
+# ROUTES ARE NOT SHIPPED WITH THIS FILE. `agentOptions.provider` below names
+# `openai`, `anthropic`, and `google`, which are `dsh-llm-pi-ai` catalog routes
+# that stay dormant until a `llm-pi-ai:` settings section supplies profiles for
+# them (the web Models page writes exactly that). Until then that role's
+# delegation fails and the lead agent itself is unaffected — but the failure is
+# loud only in the child, whose log carries `no adapter registered for provider
+# "<route>"`; the parent's tool result is `Error: subagent run failed` with no
+# route name, so diagnosing one means opening the child transcript.
+# A deployment that wants a role to run the parent's own route deletes that
+# role's `agentOptions` block instead of renaming it.
+
+# ── identity ────────────────────────────────────────────────────────────────
+
+# The lead's persona. Role personas live on their delegation rows below, where
+# they shadow this one for the child alone.
+- id: persona
+  name: '@deepseek-ai/dsh-persona'
+  config:
+    text: >-
+      You are the lead of a small agent team, powered by the {{model}} model. Your working directory is {{cwd}}.
+      You hold the task and own the answer. Delegate implementation to delegate_engineer, correctness review to
+      delegate_reviewer, and outside-the-repository questions to delegate_researcher; do the work yourself when
+      delegating would cost more than it saves. Only delegate_engineer may modify files, so run at most one
+      engineer at a time and let its work land before starting another. Reviewers and researchers may run
+      alongside it.
+
+- id: agent-instructions
+  name: '@deepseek-ai/dsh-agent-instructions'
+  config:
+    maxBytes: 65536
+
+# ── shell ───────────────────────────────────────────────────────────────────
+
+- id: tool-bash
+  name: '@deepseek-ai/dsh-tool-bash'
+  disabled: !!js process.platform === 'win32'
+
+- id: tool-pwsh
+  name: '@deepseek-ai/dsh-tool-pwsh'
+  disabled: !!js process.platform !== 'win32'
+
+# ── filesystem ──────────────────────────────────────────────────────────────
+
+- id: tool-fs
+  name: '@deepseek-ai/dsh-tool-fs'
+
+- id: tool-fs-search
+  name: '@deepseek-ai/dsh-tool-fs-search'
+  config:
+    sampleOverCapGlobResults: false
+
+# ── background jobs ────────────────────────────────────────────────────────
+
+- id: tool-jobs
+  name: '@deepseek-ai/dsh-tool-jobs'
+
+# ── skills ──────────────────────────────────────────────────────────────────
+
+- id: skill-filesystem
+  name: '@deepseek-ai/dsh-skill-filesystem'
+
+- id: tool-skill
+  name: '@deepseek-ai/dsh-tool-skill'
+
+# ── goals ───────────────────────────────────────────────────────────────────
+
+- id: tool-goal
+  name: '@deepseek-ai/dsh-tool-goal'
+
+# ── plan mode ───────────────────────────────────────────────────────────────
+
+- id: planning
+  name: cordis:group
+  group: true
+  isolate:
+    planMode: true
+  config:
+    - id: plan-mode
+      name: '@deepseek-ai/dsh-plan-mode'
+      config:
+        section: |
+              You are in plan mode. Stay in plan mode until exit_plan_mode succeeds or the user switches the session mode. Imperative language to implement changes means plan the implementation, not execute it. A user's conversational agreement — including an answer confirming something you asked — approves nothing and does not end plan mode; fold the confirmed decision into the plan and submit it through exit_plan_mode.
+
+              Explore first. Use non-mutating reads, searches, static analysis, and checks to ground the plan in the actual repository. Do not edit or write files, change configuration, run formatters or code generation that rewrites tracked files, commit, or otherwise carry out the plan. Delegation is not an exception: a role that edits files carries out the plan just as directly as an edit tool would, so do not call delegate_engineer while planning. Prefer existing functions and patterns over new machinery.
+
+              The tool catalog stays the same across modes for request-cache stability. These plan-mode rules override any later tool description or guidance that suggests using mutation tools; those tools remain listed to keep the tool catalog unchanged. Do not use todo_write to track this planning phase: it tracks implementation after an approved plan, while the plan itself belongs in exit_plan_mode.
+
+              Resolve discoverable facts by inspection. Use ask_user_question only for user-owned choices or material ambiguity that inspection cannot answer. Do not ask the user where code lives or how current behavior works when you can find out.
+
+              Make the plan decision-complete: state the goal and success criteria; group implementation changes by subsystem; identify public API, schema, and data-flow changes; cover edge cases, failure modes, tests, acceptance criteria, and explicit assumptions. Keep it concise enough to review but detailed enough that another engineer can implement it without making design decisions.
+
+              When ready, call exit_plan_mode with the complete plan markdown, starting with a # title. Make exit_plan_mode the only and final tool call in that assistant response: it presents the plan for approval, and implementation begins only in a later step after approval. Do not paste the final plan as a plain reply or ask "should I proceed?" through prose or ask_user_question. If review rejects it, incorporate the feedback and present again. If the review channel is unavailable or aborted, stay in plan mode and ask the user to switch modes manually; do not proceed with implementation.
+
+# ── compaction ──────────────────────────────────────────────────────────────
+
+- id: compaction
+  name: cordis:group
+  group: true
+  isolate:
+    compaction: true
+    toolResultPruner: true
+  config:
+    - id: compaction-basic
+      name: '@deepseek-ai/dsh-compaction-basic'
+
+    - id: command-compact
+      name: '@deepseek-ai/dsh-command-compact'
+
+    - id: tool-result-pruner
+      name: '@deepseek-ai/dsh-compaction-tool-result-pruner'
+      config:
+        thresholdChars: 8192
+        headChars: 4096
+        tailChars: 1024
+
+# ── the team ────────────────────────────────────────────────────────────────
+
+# Plane ownership matches `standard`: the `subagents` registry and its spawn
+# and fork backends are host-plane singletons, and this preset contributes only
+# the delegation TOOLS that resolve them. `workflows` is preset-plane, so the
+# engine and its consumer share the entry-local realm below.
+#
+# Every role uses `provider: spawn` — a FRESH child with no lead history. That
+# is the whole reason a role's model can differ from the lead's: `fork` would
+# replay the lead's DeepSeek turns to another vendor, paying that vendor's
+# input rate for a transcript it did not produce and discarding prefix-cache
+# reuse on both sides. Fresh children mean each role's prompt must be
+# self-contained, which is what the lead persona above asks for.
+#
+# `toolFilter` uses `deny`, never `allow`. An allow list must name every tool
+# it keeps, and `tools.restrict()` rejects unknown names loud — so an allow
+# list naming `bash` would fail on Windows, where `tool-bash` is disabled and
+# `pwsh` is registered instead. Denial states the role boundary without
+# enumerating the platform.
+#
+# The filter is VISIBILITY, not authority (see the agent-scope Agent Note's
+# security non-goal). A reviewer denied `write` and `edit` still holds the
+# shell, so what keeps it from editing is its persona, not this list. What the
+# filter does buy is that no role can re-delegate or start a workflow, which
+# with `maxDepth: 1` makes a grandchild unreachable by two independent means.
+- id: delegation
+  name: cordis:group
+  group: true
+  isolate:
+    workflowEngine: true
+  config:
+    # Peer messaging and the roster. `send_message` is what lets the lead give
+    # a running engineer more work without starting a second one.
+    - id: tool-subagent-control
+      name: '@deepseek-ai/dsh-tool-subagent-control'
+
+    - id: tool-subagent-list-agents
+      name: '@deepseek-ai/dsh-tool-subagent-control/list-agents'
+
+    # The only role permitted to modify the workspace. Continuable and
+    # background-first: the lead keeps working while it runs and receives a
+    # settlement notice, then reads the child's transcript by its id.
+    - id: tool-subagent-engineer
+      name: '@deepseek-ai/dsh-tool-subagent'
+      config:
+        provider: spawn
+        toolName: delegate_engineer
+        backgroundMode: continuable
+        maxDepth: 1
+        agentOptions:
+          provider: openai
+          model: gpt-5.3-codex
+        persona: >-
+          You implement exactly the change described in your task, in the working directory you were given.
+          You do not review your own work, you do not expand scope, and you do not refactor beyond what the
+          task names. Report what you changed, file by file, and say plainly what you could not finish.
+        toolFilter:
+          deny: [delegate_engineer, delegate_reviewer, delegate_researcher, workflow]
+
+    # One-shot and foreground with no background escape: the lead asked for a
+    # verdict, so the verdict is this call's return value. Background here
+    # would turn a blocking dependency into a notice the lead can forget.
+    - id: tool-subagent-reviewer
+      name: '@deepseek-ai/dsh-tool-subagent'
+      config:
+        provider: spawn
+        toolName: delegate_reviewer
+        backgroundMode: one-shot
+        enableRunInBackground: false
+        maxDepth: 1
+        agentOptions:
+          provider: anthropic
+          model: claude-sonnet-4-5
+        persona: >-
+          You review work for correctness against the task you were given. Read the code and run read-only
+          checks; you never edit files, and you never fix what you find. Report each finding with the file and
+          line it is in, the input or state that triggers it, and what goes wrong. Say so explicitly when you
+          find nothing.
+        toolFilter:
+          deny: [write, edit, delegate_engineer, delegate_reviewer, delegate_researcher, workflow]
+
+    # Continuable like the engineer, because research is slow and the lead has
+    # other work. `web_fetch` is absent by deployment choice (see tool-web
+    # below), so this role searches and reads the repository.
+    - id: tool-subagent-researcher
+      name: '@deepseek-ai/dsh-tool-subagent'
+      config:
+        provider: spawn
+        toolName: delegate_researcher
+        backgroundMode: continuable
+        maxDepth: 1
+        agentOptions:
+          provider: google
+          model: gemini-2.5-pro
+        persona: >-
+          You answer questions that the repository alone cannot settle, and you never modify files. Cite every
+          claim with the source you read it from — a URL, or a repository path and line. Distinguish what you
+          confirmed from what you inferred, and say when you could not confirm something.
+        toolFilter:
+          deny: [write, edit, delegate_engineer, delegate_reviewer, delegate_researcher, workflow]
+
+    # Kept for the lead alone: workflow scripts orchestrate the roles above
+    # deterministically when the model should not be choosing the order. Every
+    # role denies `workflow`, so a child cannot start one.
+    #
+    # `tool-ralph` is deliberately absent. It starts fresh children on a fixed
+    # `subagentProvider` with the parent's own options, which is a fourth,
+    # unnamed, unrouted role — the one thing this preset exists to prevent.
+    - id: workflow-worker-thread
+      name: '@deepseek-ai/dsh-workflow-worker-thread'
+      config:
+        provider: spawn
+
+    - id: tool-workflow
+      name: '@deepseek-ai/dsh-tool-workflow'
+
+# ── remaining model-facing rows ─────────────────────────────────────────────
+
+- id: tool-ask-user
+  name: '@deepseek-ai/dsh-tool-ask-user'
+
+- id: tool-todo
+  name: '@deepseek-ai/dsh-tool-todo'
+  config:
+    allowParallelInProgress: true
+
+# `fetch: false` matches the other shipped presets: the host composition's web
+# provider supplies search, and enabling fetch here would claim a capability
+# the deployment has not composed. It also keeps `web_fetch` out of the tool
+# names, which is why no role's deny list mentions it.
+- id: tool-web
+  name: '@deepseek-ai/dsh-tool-web'
+  config:
+    fetch: false
+    searchTimeoutMs: 60000
