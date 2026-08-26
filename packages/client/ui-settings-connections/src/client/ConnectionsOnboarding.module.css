@@ -1,34 +1,37 @@
-/* The first-run stage: the same cards the settings page shows, on their own
-   surface, sized so three of them fit without the stage becoming a scroller. */
-.step {
+/* A dialog over the product, not a stage replacing it: the shared Modal paints
+   the mask and centres this card, so the app stays visible and blurred behind
+   the question. */
+.dialog {
+  width: min(620px, 100%);
+  padding: 0;
+}
+
+/* Scrolls inside the card rather than growing it, so three cards and a long
+   sign-in conversation both fit the viewport. */
+.content {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  width: min(620px, 92vw);
-  max-height: 84vh;
-  overflow-y: auto;
+  box-sizing: border-box;
+  max-height: calc(100vh - 48px);
   padding: 28px;
-  border-radius: 16px;
-  background: var(--dsw-alias-bg-module-platform);
+  overflow-y: auto;
 
-  /* The cards scroll inside this stage, an elevated surface, so the scrollbar
-     indirection is rebound here rather than on the scrolling child: the
-     elevation choice belongs with the surface and inherits down (see ui-theme
-     styles/scrollbar.css for the contract). */
+  /* The card is an elevated surface and this is what scrolls on it, so the
+     scrollbar indirection is rebound here (see ui-theme styles/scrollbar.css). */
   --dsh-scrollbar-thumb: var(--dsw-alias-scrollbar-bg-l2);
   --dsh-scrollbar-thumb-hover: var(--dsw-alias-scrollbar-hover-l2);
 }
 
 .heading {
   margin: 0;
-  font-size: 18px;
-  line-height: 26px;
-  font-weight: 600;
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 500;
   color: var(--dsw-alias-label-primary);
 }
 
 .body {
-  margin: 0;
+  margin: 8px 0 0;
   font-size: 13px;
   line-height: 20px;
   color: var(--dsw-alias-label-tertiary);
@@ -38,9 +41,17 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
+  margin-top: 20px;
 }
 
 .footer {
   display: flex;
   justify-content: flex-end;
+  margin-top: 20px;
+}
+
+@media (max-width: 560px) {
+  .content {
+    padding: 24px;
+  }
 }
