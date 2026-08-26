@@ -5,17 +5,13 @@
 # level. A patch replaces the targeted row's whole `config`.
 
 - insert:
-    # ctx.authorization — the seam that owns credential sign-in conversations.
-    # No shipped bundle mounts it, and @deepseek-ai/dsh-llm-pi-ai registers its
-    # per-provider login flows inside ctx.inject(['authorization'], …), so
-    # without this row those flows never exist and nothing can sign in.
-    - id: authorization
-      name: '@deepseek-ai/dsh-authorization'
-
-    # The caller for one of those flows. A patch file contributes configuration
-    # but does not move the directory the loader resolves module paths from, so
-    # this relative specifier resolves against the booted profile's directory:
-    # copy anthropic-login.mjs into $DSH_HOME/profiles/<profile>/ first.
+    # The caller for one of the sign-in flows @deepseek-ai/dsh-llm-pi-ai registers
+    # per installed catalog provider. The `authorization` seam those flows need
+    # comes from the base bundle, so this overlay contributes only the caller.
+    # A patch file contributes configuration but does not move the directory the
+    # loader resolves module paths from, so this relative specifier resolves
+    # against the booted profile's directory: copy anthropic-login.mjs into
+    # $DSH_HOME/profiles/<profile>/ first.
     - id: anthropic-login
       name: './anthropic-login.mjs'
       config:

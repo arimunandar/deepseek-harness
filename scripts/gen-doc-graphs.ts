@@ -199,6 +199,14 @@ const SERVICE_ROLES: ServiceRole[] = [
     note: 'Flows are registered by the plugin that knows how to obtain one credential and keyed by the record they write; the seam owns the conversation and the one-attempt-per-key lifecycle, never the protocol.',
   },
   {
+    key: 'connections',
+    pkg: 'connections',
+    title: 'Connection directory',
+    mode: 'core',
+    consumers: ['client-ui-settings-connections'],
+    note: 'Joins a registered sign-in flow, a stored credential, a live model route, and the default selection into one of four states per configured backend, and exposes exactly the repair each state implies.',
+  },
+  {
     key: 'sessionTelemetry',
     pkg: 'session-telemetry',
     title: 'Session telemetry seam',
@@ -700,20 +708,24 @@ function renderCapabilitySeams(pkgs: Pkg[], services: readonly ServiceEntry[]): 
 function parseExampleCordis(rel: string): ExamplePlugin[] {
   const text = readFileSync(resolve(root, rel), 'utf8')
   const plugins: ExamplePlugin[] = []
-  let current: { id: string; name?: string } | null = null
+  let current: { id: string; name?: string; keyIndent: number } | null = null
   const flush = (): void => {
-    if (current?.name) plugins.push({ id: current.id, name: current.name })
+    if (current?.name !== undefined) plugins.push({ id: current.id, name: current.name })
   }
   for (const line of text.split('\n')) {
     // Top-level rows (`- id:`) and bundle-patch insert rows (`    - id:`).
-    const id = /^\s*-\s+id:\s+(.+?)\s*$/.exec(line)
-    if (id?.[1] !== undefined) {
+    const id = /^(\s*)-\s+id:\s+(.+?)\s*$/.exec(line)
+    if (id?.[2] !== undefined) {
       flush()
-      current = { id: stripYamlScalar(id[1]) }
+      // A row's own keys sit one level in from its dash, which is what tells
+      // the plugin's `name:` from a `name` FIELD inside its `config:` block.
+      current = { id: stripYamlScalar(id[2]), keyIndent: (id[1] ?? '').length + 2 }
       continue
     }
-    const name = /^\s+name:\s+(.+?)\s*$/.exec(line)
-    if (name?.[1] !== undefined && current) current.name = stripYamlScalar(name[1])
+    const name = /^(\s+)name:\s+(.+?)\s*$/.exec(line)
+    if (name?.[2] !== undefined && current !== null && (name[1] ?? '').length === current.keyIndent) {
+      current.name = stripYamlScalar(name[2])
+    }
   }
   flush()
   return plugins

@@ -85,6 +85,64 @@
     - id: credentials
       name: '@deepseek-ai/dsh-credentials-local'
 
+    # The sign-in conversation seam. `dsh-llm-pi-ai` registers one login flow per
+    # installed catalog provider that ships an OAuth grant (Anthropic's Claude
+    # Pro/Max, ChatGPT's Codex, and the rest) inside `ctx.inject(['authorization'],
+    # …)`, so without this row those flows never exist and no surface can offer a
+    # sign-in. The seam owns only the conversation and one-attempt-per-key
+    # lifecycle; the protocol and the credential write stay with each flow.
+    - id: authorization
+      name: '@deepseek-ai/dsh-authorization'
+
+    # What a person is offered on a "connect your AI" surface, and the join that
+    # answers whether each one is usable yet. The three entries are this bundle's
+    # choice, not the package's: which backends a deployment offers varies with
+    # which adapters it composes, so another composition names its own.
+    #
+    # Claude and Codex authenticate with a stored grant a sign-in produces, which
+    # is why they name a record scope (@deepseek-ai/dsh-llm-pi-ai's) rather than
+    # an environment variable, and why they carry a routePath — pi-ai is mounted
+    # dormant, so signing in must also create the route that reads the grant.
+    # DeepSeek authenticates with a typed key through a reference, and its adapter
+    # registers its route unconditionally, so it states no routePath at all.
+    - id: connections
+      name: '@deepseek-ai/dsh-connections'
+      config:
+        connections:
+          claude:
+            label: Claude
+            description: Use Claude models with your Anthropic account.
+            credential:
+              kind: record
+              scope: llm-pi-ai
+              id: anthropic
+            provider: anthropic
+            defaultModel: claude-sonnet-5
+            settingsNs: llm-pi-ai
+            routePath: [providers, anthropic]
+            vendorCli: claude
+          codex:
+            label: Codex
+            description: Use OpenAI models with your ChatGPT account.
+            credential:
+              kind: record
+              scope: llm-pi-ai
+              id: openai-codex
+            provider: openai-codex
+            defaultModel: gpt-5.6-terra
+            settingsNs: llm-pi-ai
+            routePath: [providers, openai-codex]
+            vendorCli: codex
+          deepseek:
+            label: DeepSeek
+            description: Use DeepSeek models with an API key from platform.deepseek.com.
+            credential:
+              kind: reference
+              reference: DEEPSEEK_API_KEY
+            provider: deepseek-official
+            defaultModel: deepseek-v4-flash
+            settingsNs: llm-deepseek
+
     # The pi-ai multi-provider twin, mounted dormant: zero routes (and no extra
     # models in the picker) until a `llm-pi-ai:` settings section supplies provider
     # profiles — then those routes register live, keys resolving per request

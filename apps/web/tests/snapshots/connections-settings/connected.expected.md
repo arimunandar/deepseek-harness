@@ -1,0 +1,36 @@
+- dialog "设置":
+  - navigation:
+    - text: 设置
+    - button "通用设置":
+      - img
+      - text: 通用设置
+    - button "连接":
+      - img
+      - text: 连接
+    - button "模型":
+      - img
+      - text: 模型
+    - button "插件":
+      - img
+      - text: 插件
+    - button "Agent 预设":
+      - img
+      - text: Agent 预设
+  - button "打开配置文件"
+  - button "关闭":
+    - img
+    - text: 关闭
+  - banner:
+    - heading "连接你的 AI" [level=2]
+    - paragraph: 选一个来用。可以随时连接多个，并在它们之间切换。
+  - region "Alpha":
+    - heading "Alpha" [level=3]
+    - paragraph: A backend you sign in to.
+    - text: 已连接
+    - button "用于新对话"
+    - button "断开连接"
+  - region "Beta":
+    - heading "Beta" [level=3]
+    - paragraph: A backend that takes a key.
+    - text: 未连接
+    - paragraph: 这个后端在当前配置下无法连接。

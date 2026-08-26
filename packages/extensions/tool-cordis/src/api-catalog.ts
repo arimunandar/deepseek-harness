@@ -620,6 +620,57 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
     ],
   },
   {
+    key: 'connections',
+    summary: 'The connection directory, joined per call from its four owners.',
+    description: 'The connection directory, joined per call from its four owners.\n\nNothing is cached. Every input is owned elsewhere and changes without asking this service — a second tab signs in, `settings.yaml` is edited by hand, a route registers when its profile appears — so a cache here would be a fifth truth to keep synchronized against four that already publish their own change events. `connections/changed` is emitted from those events instead, and every consumer re-reads.',
+    methods: [
+      {
+        signature: '@Remote(\'list\') async list(): Promise<ConnectionView[]>',
+        description: 'Describe every offered backend: what it is, whether it is usable, and what a person would press about it.',
+        parameters: [],
+        returns: 'one view per configured connection, in declaration order.',
+      },
+      {
+        signature: '@Remote(\'connect\') async connect(id: string, method: string): Promise<ConnectionOutcome>',
+        description: 'Sign in to one backend and leave it ready to use.\n\nThe call is long-lived by construction: it resolves when the sign-in settles, which is however long the person takes in their browser. While it runs, the flow\'s notices and questions reach every watching surface as `connections/notice` and `connections/prompt`, and the answer comes back through answer rather than through this call.\n\nA sign-in that succeeds is followed by the route write, because a stored credential no route reads is not a connection a person can use and asking them to press a second button for it would be asking about plumbing. The write is skipped when a route already exists, so a reconnect never overwrites a profile someone tuned.',
+        parameters: [{ name: 'id', description: 'connection id.' }, { name: 'method', description: 'one of the method ids this connection\'s flow offers.' }],
+        returns: 'how the attempt ended, with the flow\'s own words on failure.',
+      },
+      {
+        signature: 'orphanedPrompts(): string[]',
+        description: 'Connections holding an open question with no attempt running behind it.\n\nRead by this package\'s invariant companion, which is the only caller: the table and the attempt set are both private, so nothing outside can compare them.',
+        parameters: [],
+        returns: 'the offending connection ids, empty when the two agree.',
+      },
+      {
+        signature: '@Remote(\'answer\') answer(id: string, promptId: string, value: string): boolean',
+        description: 'Answer the question a running sign-in is waiting on.',
+        parameters: [{ name: 'id', description: 'connection id whose attempt asked.' }, { name: 'promptId', description: 'the id the question carried; a stale one is refused.' }, { name: 'value', description: 'the typed text, or the chosen option\'s id.' }],
+        returns: 'whether the answer reached an open question.',
+      },
+      {
+        signature: '@Remote(\'cancel\') cancel(id: string): void',
+        description: 'Withdraw a running sign-in, here or in whichever surface started it.',
+        parameters: [{ name: 'id', description: 'connection id.' }],
+      },
+      {
+        signature: '@Remote(\'finishSetup\') async finishSetup(id: string): Promise<void>',
+        description: 'Write the model route for a connection whose credential is already stored.\n\nThis is the `setup-required` repair, and it is idempotent: a connection that already has a route is left exactly as it is.',
+        parameters: [{ name: 'id', description: 'connection id.' }],
+      },
+      {
+        signature: '@Remote(\'activate\') async activate(id: string): Promise<void>',
+        description: 'Make this connection the one new conversations start with.',
+        parameters: [{ name: 'id', description: 'connection id.' }],
+      },
+      {
+        signature: '@Remote(\'disconnect\') async disconnect(id: string): Promise<void>',
+        description: 'Forget what is stored for one connection.\n\nThis is a local erasure and never a revocation: the issuer is not told, because no seam here has a place to declare one. A credential supplied by a source this deployment cannot write is left untouched — the write would be refused and reporting success would be a lie.',
+        parameters: [{ name: 'id', description: 'connection id.' }],
+      },
+    ],
+  },
+  {
     key: 'credentials',
     summary: 'Abstract credential service over two key spaces that answer two questions.',
     description: 'Abstract credential service over two key spaces that answer two questions.\n\nA CredentialRef answers "what is behind this environment-variable name", layered over the process environment, the provider-managed store, and `.env` files. One seam-wide rule binds that half: an empty stored value is absent everywhere — `resolve` skips it, `describe` reports it unconfigured — so a blank never masquerades as a configured secret.\n\nA CredentialKey answers "what credential does this plugin hold for this id". Nothing can layer here — an authorization grant has no environment to be read from — so presence of the record is the whole fact, and modifyRecord is the only write path because a correct write depends on the current value (a token refresh is read-decide-replace under one lock).',
@@ -2502,6 +2553,30 @@ export const EVENT_API: readonly EventApiEntry[] = [
     parameters: [],
   },
   {
+    name: 'connections/changed',
+    mode: 'emit',
+    signature: '\'connections/changed\'(): void',
+    summary: 'Anything that can change what `list()` answers has changed: an attempt started or settled, a credential was stored or removed, a route registered or dropped, or the active connection moved.',
+    description: 'Anything that can change what `list()` answers has changed: an attempt started or settled, a credential was stored or removed, a route registered or dropped, or the active connection moved. Carries no payload because every consumer re-reads the whole directory — the join spans four owners and a per-field increment could not be assembled from any one of them.',
+    parameters: [],
+  },
+  {
+    name: 'connections/notice',
+    mode: 'emit',
+    signature: '\'connections/notice\'(notice: ConnectionNotice): void',
+    summary: 'A running sign-in has something to tell the person waiting on it.',
+    description: 'A running sign-in has something to tell the person waiting on it. Push only — nothing answers a notice, and a surface that cannot render one loses the notice rather than the attempt.',
+    parameters: [{ name: 'notice', description: 'what is happening, and where to go if anywhere.' }],
+  },
+  {
+    name: 'connections/prompt',
+    mode: 'emit',
+    signature: '\'connections/prompt\'(prompt: ConnectionPrompt): void',
+    summary: 'A running sign-in needs an answer before it can continue.',
+    description: 'A running sign-in needs an answer before it can continue. The surface that renders it answers through `ctx.connections.answer()`; an attempt whose question is never answered ends when its caller cancels.',
+    parameters: [{ name: 'prompt', description: 'the question, and the id an answer must echo.' }],
+  },
+  {
     name: 'cordis/dynamic-package',
     mode: 'emit',
     signature: '\'cordis/dynamic-package\'(pkg: DynamicCordisPackage): void',
@@ -3112,6 +3187,34 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   {
     name: 'ConfinedSandboxMode',
     declaration: 'export type ConfinedSandboxMode = Exclude<SandboxMode, \'danger-full-access\'>;',
+  },
+  {
+    name: 'ConnectionAttention',
+    declaration: 'export type ConnectionAttention = \'route-missing\' | \'credential-missing\' | \'credential-read-only\';',
+  },
+  {
+    name: 'ConnectionMethod',
+    declaration: 'export interface ConnectionMethod {\n    id: string;\n    label: string;\n}',
+  },
+  {
+    name: 'ConnectionNotice',
+    declaration: 'export interface ConnectionNotice {\n    id: string;\n    message: string;\n    url?: string;\n    code?: string;\n}',
+  },
+  {
+    name: 'ConnectionPrompt',
+    declaration: 'export interface ConnectionPrompt {\n    id: string;\n    promptId: string;\n    kind: \'text\' | \'secret\' | \'select\';\n    message: string;\n    placeholder?: string;\n    options?: readonly ConnectionPromptOption[];\n}',
+  },
+  {
+    name: 'ConnectionPromptOption',
+    declaration: 'export interface ConnectionPromptOption {\n    id: string;\n    label: string;\n    description?: string;\n}',
+  },
+  {
+    name: 'ConnectionStatus',
+    declaration: 'export type ConnectionStatus = \'connected\' | \'setup-required\' | \'needs-attention\' | \'not-connected\';',
+  },
+  {
+    name: 'ConnectionView',
+    declaration: 'export interface ConnectionView {\n    id: string;\n    label: string;\n    description: string;\n    status: ConnectionStatus;\n    attention?: ConnectionAttention;\n    methods: readonly ConnectionMethod[];\n    connecting: boolean;\n    active: boolean;\n    vendorCliInstalled: boolean;\n    disconnectable: boolean;\n}',
   },
   {
     name: 'ContentBlockMap',

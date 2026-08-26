@@ -1,0 +1,39 @@
+# The Connections page under test offers this scenario's own backends rather
+# than the shipped three. Two reasons, both about determinism:
+#
+# A reference credential is layered over the process environment, so a shipped
+# `DEEPSEEK_API_KEY` row would read "connected" on a developer machine that has
+# one and "not connected" in CI. The reference here is a name nobody has.
+#
+# `vendorCliInstalled` is a PATH lookup, so a shipped `claude`/`codex` row would
+# read differently on a machine that has those tools installed. Neither entry
+# declares a vendor command, so both answer false everywhere.
+#
+# The record credential keeps the real `llm-pi-ai/anthropic` address, because
+# records are not layered over anything and because that is where pi-ai
+# registers a real sign-in flow — which is what makes the offered method, and
+# its absence for the key-only row, a real fact rather than a fixture.
+- id: connections
+  config:
+    connections:
+      alpha:
+        label: Alpha
+        description: A backend you sign in to.
+        credential:
+          kind: record
+          scope: llm-pi-ai
+          id: anthropic
+        provider: anthropic
+        defaultModel: claude-sonnet-5
+        settingsNs: llm-pi-ai
+        routePath: [providers, anthropic]
+      beta:
+        label: Beta
+        description: A backend that takes a key.
+        credential:
+          kind: reference
+          reference: DSH_E2E_CONNECTIONS_KEY
+        provider: beta-gateway
+        defaultModel: beta-large
+        settingsNs: llm-pi-ai
+        routePath: [providers, beta-gateway]

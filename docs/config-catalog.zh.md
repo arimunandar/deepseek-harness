@@ -541,6 +541,78 @@ export interface ToolResultPruneConfig {
 
 来源：[`packages/compaction/compaction-tool-result-pruner/src/types.ts:4`](../packages/compaction/compaction-tool-result-pruner/src/types.ts)
 
+<a id="deepseek-aidsh-connections"></a>
+
+## `@deepseek-ai/dsh-connections`
+
+依赖：`authorization` · `credentials` · `llm` · `agentDefaultModel`
+
+```ts config-catalog
+/** Which backends this deployment offers, keyed by the id every method names. */
+export interface Config {
+  /** One entry per offered backend. An empty dict serves an empty directory. */
+  connections: Record<string, ConnectionConfig>
+}
+
+/** One backend this deployment offers to connect. */
+export interface ConnectionConfig {
+  /** Product name of the backend, as a person knows it. */
+  label: string
+  /** One plain sentence about what connecting gets them. */
+  description: string
+  /** Where this connection's credential lives. */
+  credential: ConnectionCredentialConfig
+  /** Provider route key, as `ctx.llm` registers it and a model selection names it. */
+  provider: string
+  /** Model this connection starts new conversations with once it is active. */
+  defaultModel: string
+  /** User-settings namespace whose section configures this connection's route. */
+  settingsNs: string
+  /**
+   * Path from that namespace's section root to this connection's profile —
+   * the same address `LlmConfigurableProvider.settingsPath` states.
+   *
+   * Empty means this connection needs no route written at all, which is the
+   * case for an adapter that registers its route unconditionally and reads
+   * only a credential. Empty rather than absent because the settings path
+   * grammar reads an empty path as the section ROOT, and writing there would
+   * replace a whole namespace document with this package's profile; the one
+   * address this package must never write is therefore the one it uses to mean
+   * "write nothing".
+   */
+  routePath?: string[]
+  /**
+   * Profile fields written at `routePath` when this package creates the route.
+   * Empty for a catalog route that needs nothing beyond its own key.
+   */
+  profile?: Record<string, unknown>
+  /**
+   * Bare command name whose presence on PATH means the vendor's own tool is
+   * installed here. Used for one sentence of copy; never read for credentials.
+   */
+  vendorCli?: string
+}
+
+/** Where one connection's credential lives, in the key space that addresses it. */
+export interface ConnectionCredentialConfig {
+  /**
+   * `record` addresses a stored grant by `<scope>/<id>` — what a sign-in
+   * produces. `reference` addresses an environment-variable name — what a
+   * typed API key resolves through. The two key spaces answer different
+   * questions and never collide, so a connection names one.
+   */
+  kind: 'record' | 'reference'
+  /** Owning plugin's registered name, for `record` alone. */
+  scope?: string
+  /** Record id within that scope, for `record` alone. */
+  id?: string
+  /** Environment-variable name, for `reference` alone. */
+  reference?: string
+}
+```
+
+来源：[`packages/credentials/connections/src/index.ts:106`](../packages/credentials/connections/src/index.ts)
+
 <a id="deepseek-aidsh-cordis-host-runner"></a>
 
 ## `@deepseek-ai/dsh-cordis-host-runner`
@@ -3251,6 +3323,7 @@ export interface Config {
 - `@deepseek-ai/dsh-client-ui-reference`（[`packages/client/ui-reference/src/index.ts`](../packages/client/ui-reference/src/index.ts)）
 - `@deepseek-ai/dsh-client-ui-renderer`（[`packages/client/ui-renderer/src/index.ts`](../packages/client/ui-renderer/src/index.ts)）
 - `@deepseek-ai/dsh-client-ui-settings`（[`packages/client/ui-settings/src/index.ts`](../packages/client/ui-settings/src/index.ts)）
+- `@deepseek-ai/dsh-client-ui-settings-connections`（[`packages/client/ui-settings-connections/src/index.ts`](../packages/client/ui-settings-connections/src/index.ts)）
 - `@deepseek-ai/dsh-client-ui-settings-general`（[`packages/client/ui-settings-general/src/index.ts`](../packages/client/ui-settings-general/src/index.ts)）
 - `@deepseek-ai/dsh-client-ui-settings-models`（[`packages/client/ui-settings-models/src/index.ts`](../packages/client/ui-settings-models/src/index.ts)）
 - `@deepseek-ai/dsh-client-ui-settings-plugin-inventory`（[`packages/client/ui-settings-plugin-inventory/src/index.ts`](../packages/client/ui-settings-plugin-inventory/src/index.ts)）
