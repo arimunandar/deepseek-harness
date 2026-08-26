@@ -4,7 +4,17 @@ English | [中文](README.zh.md)
 
 Boot-time sign-in for a pi-ai catalog provider that ships an OAuth login — by default Anthropic's "Claude Pro/Max" subscription flow.
 
-[`@deepseek-ai/dsh-llm-pi-ai`](../../packages/llm/llm-pi-ai/README.md) already registers one authorization flow per installed catalog provider, and the flow itself owns the protocol and the credential write. What no shipped surface does is *call* it: the Web UI's Models page only edits api-key credentials, and the CLI has no `login` command. This overlay is that missing caller — a terminal interaction handed to `ctx.authorization.begin()` during boot.
+[`@deepseek-ai/dsh-llm-pi-ai`](../../packages/llm/llm-pi-ai/README.md) registers one authorization flow per installed catalog provider, and the flow itself owns the protocol and the credential write. This overlay calls one of them at boot instead of from a page or a command — a terminal interaction handed to `ctx.authorization.begin()` during boot, for a profile that must come up already signed in.
+
+## If you added the `authorization` row by hand
+
+Earlier revisions of this page told you to insert a `- id: authorization` row, because no bundle mounted the seam. The base bundle mounts it now, so a copy left in `$DSH_HOME/cordis.patch.yml` or a profile's own patch layer is a **duplicate loader entry id** and every profile fails to boot:
+
+```
+Error: dsh: plugin tree failed to load: failed to apply loader entry include (cordis:include): duplicate loader entry id: authorization
+```
+
+Delete that one row. The `anthropic-login` row below it keeps working unchanged.
 
 ## Run it
 
@@ -25,7 +35,6 @@ Once a credential exists the plugin stays out of the way — it reports the stor
 
 | Row | Why |
 |---|---|
-| `authorization` | `ctx.authorization` is the seam that owns sign-in conversations. No shipped bundle mounts it, and pi-ai registers its login flows inside `ctx.inject(['authorization'], …)`, so without this row those flows never exist. |
 | `anthropic-login` | The caller. Resolves `<scope>/<provider>` (`llm-pi-ai/anthropic`), waits for pi-ai to register that flow, then runs the named method. |
 
 ## Configuration

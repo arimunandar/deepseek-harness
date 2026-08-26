@@ -1,0 +1,7 @@
+- dialog "断开 Alpha？":
+  - heading "断开 Alpha？" [level=2]
+  - button "关闭":
+    - img
+  - paragraph: 这只会让本机忘记登录信息，不会注销你在 Alpha 的账号。随时可以重新连接。
+  - button "返回"
+  - button "确认断开"

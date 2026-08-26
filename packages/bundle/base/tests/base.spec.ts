@@ -41,6 +41,31 @@ describe('dsh-base bundle', () => {
     expect(manifest.dependencies).not.toHaveProperty('@deepseek-ai/dsh-subagent-claude-code')
   })
 
+  it('mounts the authorization seam wherever a plugin registering login flows is mounted', () => {
+    const root = fileURLToPath(new URL('..', import.meta.url))
+    const manifest = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8')) as {
+      dependencies?: Record<string, string>
+    }
+    const parsed = yaml.load(
+      readFileSync(resolve(root, 'cordis.patch.yml'), 'utf8'),
+      { schema: entryListSchema },
+    )
+    if (!Array.isArray(parsed)) throw new TypeError('base patch must parse to a patch list')
+    const rows = parsed.flatMap((patch): Record<string, unknown>[] =>
+      typeof patch === 'object' && patch !== null
+        ? (patch as { insert?: Record<string, unknown>[] }).insert ?? []
+        : [],
+    )
+    // dsh-llm-pi-ai registers one login flow per installed catalog provider
+    // inside ctx.inject(['authorization'], …). Mounting it without the seam
+    // composes a tree where no provider can ever be signed into, and nothing
+    // at runtime reports that: the flows simply never register.
+    const mountsPiAi = rows.some(row => row.name === '@deepseek-ai/dsh-llm-pi-ai')
+    expect(mountsPiAi).toBe(true)
+    expect(rows.filter(row => row.name === '@deepseek-ai/dsh-authorization')).toHaveLength(1)
+    expect(manifest.dependencies).toHaveProperty('@deepseek-ai/dsh-authorization')
+  })
+
   it('gates each shell stack by platform with a symmetric disabled expression', () => {
     const root = fileURLToPath(new URL('..', import.meta.url))
     const parsed = yaml.load(

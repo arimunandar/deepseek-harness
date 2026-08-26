@@ -4,7 +4,17 @@
 
 在启动时为随附 OAuth 登录的 pi-ai 目录提供方完成登录——默认是 Anthropic 的“Claude Pro/Max”订阅流程。
 
-[`@deepseek-ai/dsh-llm-pi-ai`](../../packages/llm/llm-pi-ai/README.zh.md) 已经为每个已安装的目录提供方注册了一条授权流程，流程本身负责协议交互与凭据写入。缺的是*调用方*：Web 界面的模型页只能编辑 api-key 凭据，CLI 也没有 `login` 命令。这份覆盖层就是那个缺失的调用方——在启动过程中把一个终端交互交给 `ctx.authorization.begin()`。
+[`@deepseek-ai/dsh-llm-pi-ai`](../../packages/llm/llm-pi-ai/README.zh.md) 为每个已安装的目录提供方注册了一条授权流程，流程本身负责协议交互与凭据写入。这份覆盖层在启动时调用其中一条，而不是从页面或命令发起——把一个终端交互交给 `ctx.authorization.begin()`，供必须启动即已登录的 profile 使用。
+
+## 如果你手工加过 `authorization` 行
+
+本页早先的版本让你插入一行 `- id: authorization`，因为当时没有任何 bundle 挂载这条接缝。现在 base bundle 会挂载它，所以留在 `$DSH_HOME/cordis.patch.yml` 或某个 profile 自己的 patch 层里的那份副本就成了**重复的 loader entry id**，每个 profile 都会启动失败：
+
+```
+Error: dsh: plugin tree failed to load: failed to apply loader entry include (cordis:include): duplicate loader entry id: authorization
+```
+
+删掉那一行即可。它下面的 `anthropic-login` 行照常工作。
 
 ## 运行
 
@@ -25,7 +35,6 @@ dsh web --patch ./examples/anthropic-login/cordis.yml
 
 | 行 | 原因 |
 |---|---|
-| `authorization` | `ctx.authorization` 是负责登录会话的接缝。没有任何随附 bundle 挂载它，而 pi-ai 是在 `ctx.inject(['authorization'], …)` 内注册登录流程的，因此缺了这一行，那些流程根本不会存在。 |
 | `anthropic-login` | 调用方。解析 `<scope>/<provider>`（`llm-pi-ai/anthropic`），等待 pi-ai 注册该流程，然后运行指定的方法。 |
 
 ## 配置

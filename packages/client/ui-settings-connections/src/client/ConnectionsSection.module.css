@@ -1,0 +1,46 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 720px;
+}
+
+.header {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.heading {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--dsw-alias-text-primary);
+}
+
+.intro {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--dsw-alias-text-tertiary);
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 13px;
+  color: var(--dsw-alias-text-secondary);
+}
+
+.cards {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.confirmActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}

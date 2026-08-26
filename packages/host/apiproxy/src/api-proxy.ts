@@ -109,6 +109,9 @@ import {
   hasApiRemoteSubagentOwner,
   inspectApiRemoteSession,
 } from '@deepseek-ai/dsh-api-remotes'
+// Context augmentation only: the connection directory's forwarded-event
+// declarations must be in this program for the allowlist loop to name them.
+import type {} from '@deepseek-ai/dsh-connections/types'
 import { canOpenNativePath, openNativePath, openNativeTextFile } from './native-path-opener.ts'
 
 /** Page size when history is called without maxMessages. */

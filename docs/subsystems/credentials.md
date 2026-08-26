@@ -118,6 +118,96 @@ async begin(request: AuthorizationRequest): Promise<AuthorizationOutcome>
 
 Source: [`packages/credentials/authorization/src/index.ts`](../../packages/credentials/authorization/src/index.ts)
 
+<a id="ctxconnections--connectionsservice"></a>
+
+### `ctx.connections` — `ConnectionsService`
+
+The connection directory, joined per call from its four owners.
+
+Nothing is cached. Every input is owned elsewhere and changes without asking this service — a second tab signs in, `settings.yaml` is edited by hand, a route registers when its profile appears — so a cache here would be a fifth truth to keep synchronized against four that already publish their own change events. `connections/changed` is emitted from those events instead, and every consumer re-reads.
+
+```ts cordis-catalog
+/**
+ * Describe every offered backend: what it is, whether it is usable, and what
+ * a person would press about it.
+ * @returns one view per configured connection, in declaration order.
+ */
+@Remote('list') async list(): Promise<ConnectionView[]>
+
+/**
+ * Sign in to one backend and leave it ready to use.
+ *
+ * The call is long-lived by construction: it resolves when the sign-in
+ * settles, which is however long the person takes in their browser. While it
+ * runs, the flow's notices and questions reach every watching surface as
+ * `connections/notice` and `connections/prompt`, and the answer comes back
+ * through {@link answer} rather than through this call.
+ *
+ * A sign-in that succeeds is followed by the route write, because a stored
+ * credential no route reads is not a connection a person can use and asking
+ * them to press a second button for it would be asking about plumbing. The
+ * write is skipped when a route already exists, so a reconnect never
+ * overwrites a profile someone tuned.
+ * @param id - connection id.
+ * @param method - one of the method ids this connection's flow offers.
+ * @returns how the attempt ended, with the flow's own words on failure.
+ */
+@Remote('connect') async connect(id: string, method: string): Promise<ConnectionOutcome>
+
+/**
+ * Connections holding an open question with no attempt running behind it.
+ *
+ * Read by this package's invariant companion, which is the only caller: the
+ * table and the attempt set are both private, so nothing outside can compare
+ * them.
+ * @returns the offending connection ids, empty when the two agree.
+ */
+orphanedPrompts(): string[]
+
+/**
+ * Answer the question a running sign-in is waiting on.
+ * @param id - connection id whose attempt asked.
+ * @param promptId - the id the question carried; a stale one is refused.
+ * @param value - the typed text, or the chosen option's id.
+ * @returns whether the answer reached an open question.
+ */
+@Remote('answer') answer(id: string, promptId: string, value: string): boolean
+
+/**
+ * Withdraw a running sign-in, here or in whichever surface started it.
+ * @param id - connection id.
+ */
+@Remote('cancel') cancel(id: string): void
+
+/**
+ * Write the model route for a connection whose credential is already stored.
+ *
+ * This is the `setup-required` repair, and it is idempotent: a connection
+ * that already has a route is left exactly as it is.
+ * @param id - connection id.
+ */
+@Remote('finishSetup') async finishSetup(id: string): Promise<void>
+
+/**
+ * Make this connection the one new conversations start with.
+ * @param id - connection id.
+ */
+@Remote('activate') async activate(id: string): Promise<void>
+
+/**
+ * Forget what is stored for one connection.
+ *
+ * This is a local erasure and never a revocation: the issuer is not told,
+ * because no seam here has a place to declare one. A credential supplied by
+ * a source this deployment cannot write is left untouched — the write would
+ * be refused and reporting success would be a lie.
+ * @param id - connection id.
+ */
+@Remote('disconnect') async disconnect(id: string): Promise<void>
+```
+
+Source: [`packages/credentials/connections/src/index.ts`](../../packages/credentials/connections/src/index.ts)
+
 <a id="ctxcredentials--credentialprovider-abstract-seam"></a>
 
 ### `ctx.credentials` — `CredentialProvider` (abstract seam)
@@ -234,7 +324,70 @@ One authorization attempt has finished and released its key. Fires for every ter
 'authorization/settled'(key: CredentialKey, settlement: AuthorizationSettlement): void
 ```
 
-Source: [`packages/credentials/authorization/src/index.ts`](../../packages/credentials/authorization/src/index.ts)
+Source: [`packages/credentials/authorization/src/types.ts`](../../packages/credentials/authorization/src/types.ts)
+
+<a id="connections-events"></a>
+
+### `connections/*` events
+
+<a id="connectionschanged--emit"></a>
+
+#### `connections/changed` — emit
+
+Anything that can change what `list()` answers has changed: an attempt started or settled, a credential was stored or removed, a route registered or dropped, or the active connection moved. Carries no payload because every consumer re-reads the whole directory — the join spans four owners and a per-field increment could not be assembled from any one of them.
+
+```ts cordis-catalog
+/**
+ * Anything that can change what `list()` answers has changed: an attempt
+ * started or settled, a credential was stored or removed, a route
+ * registered or dropped, or the active connection moved. Carries no
+ * payload because every consumer re-reads the whole directory — the join
+ * spans four owners and a per-field increment could not be assembled from
+ * any one of them.
+ * @mode emit
+ */
+'connections/changed'(): void
+```
+
+Source: [`packages/credentials/connections/src/types.ts`](../../packages/credentials/connections/src/types.ts)
+
+<a id="connectionsnotice--emit"></a>
+
+#### `connections/notice` — emit
+
+A running sign-in has something to tell the person waiting on it. Push only — nothing answers a notice, and a surface that cannot render one loses the notice rather than the attempt.
+
+```ts cordis-catalog
+/**
+ * A running sign-in has something to tell the person waiting on it. Push
+ * only — nothing answers a notice, and a surface that cannot render one
+ * loses the notice rather than the attempt.
+ * @mode emit
+ * @param notice - what is happening, and where to go if anywhere.
+ */
+'connections/notice'(notice: ConnectionNotice): void
+```
+
+Source: [`packages/credentials/connections/src/types.ts`](../../packages/credentials/connections/src/types.ts)
+
+<a id="connectionsprompt--emit"></a>
+
+#### `connections/prompt` — emit
+
+A running sign-in needs an answer before it can continue. The surface that renders it answers through `ctx.connections.answer()`; an attempt whose question is never answered ends when its caller cancels.
+
+```ts cordis-catalog
+/**
+ * A running sign-in needs an answer before it can continue. The surface
+ * that renders it answers through `ctx.connections.answer()`; an attempt
+ * whose question is never answered ends when its caller cancels.
+ * @mode emit
+ * @param prompt - the question, and the id an answer must echo.
+ */
+'connections/prompt'(prompt: ConnectionPrompt): void
+```
+
+Source: [`packages/credentials/connections/src/types.ts`](../../packages/credentials/connections/src/types.ts)
 
 <a id="credentials-events"></a>
 

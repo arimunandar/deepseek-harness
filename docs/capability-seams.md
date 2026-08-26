@@ -53,6 +53,9 @@ flowchart LR
   pkg_credentials_local["credentials-local"]
   pkg_authorization["authorization"]
   svc_authorization["ctx.authorization<br/>Authorization flow registry"]
+  pkg_connections["connections"]
+  svc_connections["ctx.connections<br/>Connection directory"]
+  pkg_client_ui_settings_connections["client-ui-settings-connections"]
   pkg_session_telemetry["session-telemetry"]
   svc_sessionTelemetry["ctx.sessionTelemetry<br/>Session telemetry seam"]
   pkg_session_telemetry_otel["session-telemetry-otel"]
@@ -221,6 +224,7 @@ flowchart LR
   pkg_compaction --> svc_compaction
   pkg_compaction_basic --> svc_compaction
   pkg_compaction_tool_result_pruner --> svc_toolResultPruner
+  pkg_connections --> svc_connections
   pkg_cordis_host_runner --> svc_cordisInspect
   pkg_cordis_host_runner --> svc_dynamicCordisRunner
   pkg_credentials --> svc_credentials
@@ -322,6 +326,7 @@ flowchart LR
   svc_clientModules --> pkg_hmr
   svc_codeRuntime --> pkg_tools
   svc_compaction --> pkg_compaction_basic
+  svc_connections --> pkg_client_ui_settings_connections
   svc_cordisInspect --> pkg_tool_cordis
   svc_credentials --> pkg_apiproxy
   svc_credentials --> pkg_llm_deepseek
@@ -437,6 +442,7 @@ flowchart LR
 | `ctx.settings` | `seam` | [`settings`](../packages/settings/settings) | [`settings-file`](../packages/settings/settings-file) | [`llm-deepseek`](../packages/llm/llm-deepseek), [`llm-pi-ai`](../packages/llm/llm-pi-ai), `apiproxy` | - | Plugins register namespace schemas and resolve layered values; providers store the raw document. The LLM adapters register their entry config as the composition base under the user section; the web gateway serves redacted layered descriptors and writes the user layer. |
 | `ctx.credentials` | `seam` | [`credentials`](../packages/credentials/credentials) | [`credentials-local`](../packages/credentials/credentials-local) | [`llm-deepseek`](../packages/llm/llm-deepseek), [`llm-pi-ai`](../packages/llm/llm-pi-ai), `apiproxy` | - | Configuration carries references to secrets; providers own the values. Consumers resolve per operation, so a rotated credential reaches the very next request; the web gateway exposes value-free views and write-only storage. |
 | `ctx.authorization` | `seam` | [`authorization`](../packages/credentials/authorization) | - | [`llm-pi-ai`](../packages/llm/llm-pi-ai) | - | Flows are registered by the plugin that knows how to obtain one credential and keyed by the record they write; the seam owns the conversation and the one-attempt-per-key lifecycle, never the protocol. |
+| `ctx.connections` | `core` | [`connections`](../packages/credentials/connections) | - | [`client-ui-settings-connections`](../packages/client/ui-settings-connections) | - | Joins a registered sign-in flow, a stored credential, a live model route, and the default selection into one of four states per configured backend, and exposes exactly the repair each state implies. |
 | `ctx.sessionTelemetry` | `seam` | [`session-telemetry`](../packages/session/session-telemetry) | [`session-telemetry-otel`](../packages/session/session-telemetry-otel) | - | - | The seam captures, redacts, and hands session records to one backend; nothing else consumes the service — its output leaves the process. |
 | `ctx.storage` | `seam` | [`storage`](../packages/storage/storage) | [`storage-json`](../packages/storage/storage-json), [`storage-sqlite`](../packages/storage/storage-sqlite) | [`storage-domain`](../packages/storage/storage-domain) | - | Backends register side by side under names; data forms (domain first) mount on the hub and translate typed operations into opaque KV-unit primitives. |
 | `ctx.storageDomain` | `core` | [`storage-domain`](../packages/storage/storage-domain) | - | [`workspace`](../packages/workspace/workspace), [`message-feedback`](../packages/feedback/message-feedback) | - | Waits for every configured backend, then publishes the domain form as one lifecycle-bound service for typed durable state. |
