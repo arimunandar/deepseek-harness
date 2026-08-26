@@ -52,7 +52,7 @@ Shipping a preset means shipping its Web display copy too. `presetDisplayText` l
 
 The tool filters buy visibility, not authority — the agent-scope Agent Note names that a [security non-goal](../architecture/2026-07-08-agent-scope-contexts.md#security-and-authority-are-non-goals). A reviewer denied `write` and `edit` still holds the shell, so what keeps it from editing is its persona. What the filters do guarantee is that no role can re-delegate or start a workflow, which together with `maxDepth: 1` makes a grandchild unreachable by two independent means.
 
-Token accounting is complete here only because every role is in-process: `ctx.tokenMeter` folds each child's usage by Session. A deployment that swaps a role onto `provider: codex` or `claude-code` loses that — those children report no usage through the seam — so the meter would under-report rather than showing a gap.
+Token accounting is complete here because every role is in-process: `ctx.tokenMeter` folds each child's usage by Session. A deployment that swaps a role onto `provider: claude-code` keeps it through [`subagent/usage`](2026-08-27-delegated-token-usage.md); one that swaps onto `provider: codex` does not, because that provider reports no usage, and the missing event is the gap rather than a smaller number.
 
 ## Testing
 

@@ -6,6 +6,7 @@ import { SessionId } from '@deepseek-ai/dsh-session'
 import type {
   SubagentCapabilities,
   SubagentProvider,
+  SubagentReportedUsage,
   SubagentResult,
   SubagentRun,
   SubagentStartRequest,
@@ -35,6 +36,8 @@ export interface Config {
   inheritsParentContext?: boolean
   /** Structured value returned when the request asks for one. */
   structured?: unknown
+  /** Delegated token usage the scripted child reports, as an out-of-process provider would. */
+  usage?: SubagentReportedUsage
   /** Observes each start; the child's result additionally waits for the returned promise. */
   onStart?: (request: SubagentStartRequest) => Promise<void> | void
 }
@@ -75,6 +78,7 @@ class ScriptedSubagentProvider implements SubagentProvider {
         ...this.config.diagnostic !== undefined && terminal !== 'completed'
           ? { diagnostic: this.config.diagnostic }
           : {},
+        ...this.config.usage === undefined ? {} : { usage: this.config.usage },
         stopReason: terminal,
       }
     }

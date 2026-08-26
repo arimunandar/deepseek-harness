@@ -710,6 +710,23 @@ Source: [`packages/core/session/src/types.ts:254`](../packages/core/session/src/
 
 Source: [`packages/subagent/subagent/src/descriptor.ts:37`](../packages/subagent/subagent/src/descriptor.ts)
 
+<a id="subagentusage--log-only"></a>
+
+#### `subagent/usage` — log-only
+
+```ts persistence-catalog
+/**
+ * Token usage one delegated child reported for its own model requests,
+ * appended to the DELEGATING session's log when the run settles. Log-only:
+ * it carries no `surfaceOp`, never enters model history, and survives
+ * compaction. One event per settled run that reported usage; a run whose
+ * provider reports none appends nothing.
+ */
+'subagent/usage': SubagentUsage
+```
+
+Source: [`packages/subagent/subagent/src/usage.ts:35`](../packages/subagent/subagent/src/usage.ts)
+
 ### `team/*`
 
 <a id="teammember--log-only"></a>

@@ -15,7 +15,7 @@ import type { AgentOptions } from '@deepseek-ai/dsh-agent'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import type { JsonValue } from '@deepseek-ai/dsh-session'
 import { assertSubagentMaxDepth, settleRun } from '@deepseek-ai/dsh-subagent'
-import type { SubagentProvider, SubagentResult, SubagentRun } from '@deepseek-ai/dsh-subagent'
+import type { SubagentProvider, SubagentReportedUsage, SubagentResult, SubagentRun } from '@deepseek-ai/dsh-subagent'
 import type { JobOutcome } from '@deepseek-ai/dsh-jobs'
 import type {} from '@deepseek-ai/dsh-system-prompt'
 
@@ -172,10 +172,19 @@ type ForegroundToolResult = {
 /**
  * Collect and release one foreground run without letting disposal replace an
  * independent result failure.
+ * @param run - the published run to collect and dispose.
+ * @param recordUsage - records provider-reported delegated usage, called before
+ * a failing result throws so a run that spent tokens and then failed is still
+ * accounted for.
+ * @returns the canonical foreground tool result.
  */
-async function settleForegroundRun(run: SubagentRun): Promise<ForegroundToolResult> {
+async function settleForegroundRun(
+  run: SubagentRun,
+  recordUsage: (usage: SubagentReportedUsage) => void,
+): Promise<ForegroundToolResult> {
   const [execution] = await Promise.allSettled([
     run.result.then((result): ForegroundToolResult => {
+      if (result.usage !== undefined) recordUsage(result.usage)
       const error = stopReasonError(result)
       if (error !== undefined) {
         // The registry converts this throw to isError; partial output is not
@@ -435,7 +444,17 @@ export function apply(ctx: Context, config: Config): void {
           ...request,
           signal: exec.signal,
         })
-        return settleForegroundRun(run)
+        // An out-of-process child owns no Session here, so the delegating
+        // session's log is the only durable place its spend can land. An
+        // in-process child's own log already carries it, and the provider
+        // reports none for those, so this records nothing twice.
+        return settleForegroundRun(run, (usage) => {
+          parent.session.append('subagent/usage', {
+            ...usage,
+            childId: run.id,
+            reportedBy: config.provider,
+          })
+        })
       },
     }))
   }

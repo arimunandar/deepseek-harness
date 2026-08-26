@@ -8,6 +8,7 @@ import type {
   SDKMessage,
   SDKPermissionDeniedMessage,
   SDKResultMessage,
+  SDKResultSuccess,
   SpawnOptions,
 } from '@anthropic-ai/claude-agent-sdk'
 import { Context } from '@deepseek-ai/cordis'
@@ -46,6 +47,7 @@ import {
   claudeQueryOptions,
   consumeClaudeQuery,
   disposeClaudeCodeChild,
+  resultUsage,
   startClaudeCodeRun,
   successfulResult,
   textTask,
@@ -1635,5 +1637,89 @@ describe('query and process disposal', () => {
       expect.objectContaining({ message: 'wait boom' }),
     ])
     expect(waitFailure.terminate).toHaveBeenCalledOnce()
+  })
+})
+
+describe('delegated usage', () => {
+  const buckets = {
+    input_tokens: 120,
+    output_tokens: 34,
+    cache_read_input_tokens: 500,
+    cache_creation_input_tokens: 7,
+  }
+
+  it('reads the four disjoint buckets and the single billed model', () => {
+    expect(resultUsage({
+      ...success(),
+      usage: buckets,
+      modelUsage: { 'claude-sonnet-4-5': {} },
+    } as unknown as SDKResultSuccess)).toEqual({
+      model: 'claude-sonnet-4-5',
+      uncachedInputTokens: 120,
+      cacheReadTokens: 500,
+      cacheWriteTokens: 7,
+      outputTokens: 34,
+    })
+  })
+
+  it('attributes no model when the run billed several', () => {
+    // Naming one of them would report the whole run against a model that only
+    // did part of it.
+    const usage = resultUsage({
+      ...success(),
+      usage: buckets,
+      modelUsage: { 'claude-sonnet-4-5': {}, 'claude-haiku-4-5': {} },
+    } as unknown as SDKResultSuccess)
+
+    expect(usage?.model).toBeUndefined()
+    expect(usage?.outputTokens).toBe(34)
+  })
+
+  it('treats a null cache bucket as a real zero', () => {
+    expect(resultUsage({
+      ...success(),
+      usage: { input_tokens: 1, output_tokens: 2, cache_read_input_tokens: null, cache_creation_input_tokens: null },
+      modelUsage: {},
+    } as unknown as SDKResultSuccess)).toEqual({
+      uncachedInputTokens: 1,
+      cacheReadTokens: 0,
+      cacheWriteTokens: 0,
+      outputTokens: 2,
+    })
+  })
+
+  it.each([
+    ['no usage object at all', undefined],
+    ['a non-object usage', 'nope'],
+    ['an unreadable input bucket', { input_tokens: 'many', output_tokens: 2 }],
+    ['a negative output bucket', { input_tokens: 1, output_tokens: -2 }],
+  ])('reports nothing for %s, rather than zero', (_label, usage) => {
+    // The seam defines absence as UNMEASURED. Zero here would claim the child
+    // was free because its report could not be decoded.
+    expect(resultUsage({ ...success(), usage, modelUsage: {} } as unknown as SDKResultSuccess))
+      .toBeUndefined()
+  })
+
+  it('omits usage from a result whose SDK report was unreadable', async () => {
+    const result = await consumeClaudeQuery(queryFrom([success('answer')]))
+
+    expect(result.stopReason).toBe('completed')
+    expect(result.usage).toBeUndefined()
+  })
+
+  it('carries usage on the result when the SDK reported it', async () => {
+    const result = await consumeClaudeQuery(queryFrom([{
+      ...success('answer'),
+      usage: buckets,
+      modelUsage: { 'claude-sonnet-4-5': {} },
+    } as unknown as SDKResultMessage]))
+
+    expect(result.usage).toEqual({
+      model: 'claude-sonnet-4-5',
+      uncachedInputTokens: 120,
+      cacheReadTokens: 500,
+      cacheWriteTokens: 7,
+      outputTokens: 34,
+    })
   })
 })

@@ -1367,3 +1367,71 @@ describe('depth budget configuration', () => {
     expect(requests[0]?.toolFilter).toBeUndefined()
   })
 })
+
+describe('delegated usage recording', () => {
+  const usage = {
+    model: 'claude-sonnet-4-5',
+    uncachedInputTokens: 120,
+    cacheReadTokens: 500,
+    cacheWriteTokens: 7,
+    outputTokens: 34,
+  }
+
+  /** A parent whose session records what the tool appends to it. */
+  function recordingAgent(appended: { type: string; data: unknown }[]): Agent {
+    return {
+      id: SessionId('parent-usage'),
+      session: {
+        append: (type: string, data: unknown) => { appended.push({ type, data }) },
+      },
+    } as unknown as Agent
+  }
+
+  it('records a reported usage in the delegating session, attributed to the run', async () => {
+    const appended: { type: string; data: unknown }[] = []
+    const ctx = await setup({ provider: 'mock' }, { usage })
+
+    const result = await callSubagent(
+      ctx,
+      { description: 'probe', prompt: 'do it' },
+      { agent: recordingAgent(appended) },
+    )
+
+    // The delegating session is the only durable place an out-of-process
+    // child's spend can land, so this is where a total has to find it.
+    expect(appended).toHaveLength(1)
+    expect(appended[0]?.type).toBe('subagent/usage')
+    expect(appended[0]?.data).toMatchObject({ ...usage, reportedBy: 'mock' })
+    expect((appended[0]?.data as { childId?: unknown }).childId).toBeDefined()
+    // Recording is invisible to the model: the tool result is unchanged.
+    expect(text(result)).toBe('scripted subagent reply')
+  })
+
+  it('appends nothing when the provider reports no usage', async () => {
+    // Absence is UNMEASURED, and an event carrying zeros would read as free.
+    const appended: { type: string; data: unknown }[] = []
+    const ctx = await setup({ provider: 'mock' })
+
+    await callSubagent(ctx, { description: 'probe', prompt: 'do it' }, { agent: recordingAgent(appended) })
+
+    expect(appended).toEqual([])
+  })
+
+  it('records usage for a run that spent tokens and then failed', async () => {
+    const appended: { type: string; data: unknown }[] = []
+    const ctx = await setup({ provider: 'mock' }, { usage, stopReason: 'error' })
+
+    // The registry converts the stop-reason throw into an errored tool result.
+    const failed = await callSubagent(
+      ctx,
+      { description: 'probe', prompt: 'do it' },
+      { agent: recordingAgent(appended) },
+    )
+    expect(failed.isError).toBe(true)
+
+    // The child billed for the work it did before failing; dropping that would
+    // under-report exactly the runs worth noticing.
+    expect(appended).toHaveLength(1)
+    expect(appended[0]?.type).toBe('subagent/usage')
+  })
+})

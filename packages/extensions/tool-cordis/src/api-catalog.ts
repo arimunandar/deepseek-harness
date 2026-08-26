@@ -4617,12 +4617,16 @@ export const TYPE_API: readonly TypeApiEntry[] = [
     declaration: 'export type SubagentReportDelivery = \'quiet\' | \'next-step\';',
   },
   {
+    name: 'SubagentReportedUsage',
+    declaration: 'export interface SubagentReportedUsage {\n    readonly model?: string;\n    readonly uncachedInputTokens: number;\n    readonly cacheReadTokens: number;\n    readonly cacheWriteTokens: number;\n    readonly outputTokens: number;\n}',
+  },
+  {
     name: 'SubagentReportOptions',
     declaration: 'export interface SubagentReportOptions {\n    readonly delivery: SubagentReportDelivery;\n    readonly signal: AbortSignal;\n}',
   },
   {
     name: 'SubagentResult',
-    declaration: 'export interface SubagentResult {\n    readonly output: ContentBlock[];\n    readonly structured?: unknown;\n    readonly diagnostic?: string;\n    readonly stopReason: SubagentStopReason;\n}',
+    declaration: 'export interface SubagentResult {\n    readonly output: ContentBlock[];\n    readonly structured?: unknown;\n    readonly diagnostic?: string;\n    readonly usage?: SubagentReportedUsage;\n    readonly stopReason: SubagentStopReason;\n}',
   },
   {
     name: 'SubagentRun',

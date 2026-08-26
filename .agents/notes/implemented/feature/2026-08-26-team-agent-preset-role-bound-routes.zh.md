@@ -52,7 +52,7 @@ Status: implemented
 
 工具过滤买到的是可见性，不是权限——agent-scope Agent Note 把这一点写为[安全非目标](../architecture/2026-07-08-agent-scope-contexts.zh.md#security-and-authority-are-non-goals)。被拒绝 `write` 和 `edit` 的评审员仍然握有 shell，所以真正阻止它编辑的是它的 persona。这些过滤确实保证的是：没有任何角色能再次分派或启动工作流，这一点与 `maxDepth: 1` 一起，让孙代 Agent 由两条独立途径同时不可达。
 
-Token 计量在这里之所以完整，只因为每个角色都在进程内：`ctx.tokenMeter` 按 Session 折算每个子 Agent 的用量。把某个角色换到 `provider: codex` 或 `claude-code` 的部署会失去这一点——那类子 Agent 不通过该 seam 报告任何用量——所以计量会少报，而不是显示一个缺口。
+Token 计量在这里之所以完整，是因为每个角色都在进程内：`ctx.tokenMeter` 按 Session 折算每个子 Agent 的用量。把某个角色换到 `provider: claude-code` 的部署经由 [`subagent/usage`](2026-08-27-delegated-token-usage.zh.md) 保住了这一点；换到 `provider: codex` 的则没有，因为该 provider 不上报任何用量，而缺失的那个事件本身就是缺口，不是一个更小的数。
 
 ## 测试
 

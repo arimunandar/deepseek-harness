@@ -21,6 +21,7 @@ import { Context } from '@deepseek-ai/cordis'
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import SubagentRuntime from '@deepseek-ai/dsh-subagent'
+import type { SubagentResult } from '@deepseek-ai/dsh-subagent'
 import type {
   SubprocessHandle,
   SubprocessOutcome,
@@ -284,6 +285,39 @@ function startRequest(
   })
 }
 
+/**
+ * A completed run's result, ignoring the delegated usage the real CLI reports.
+ *
+ * The token counts a real Claude Code run bills are not stable across product
+ * versions or prompt cache state, so the exact-equality cases below assert the
+ * usage separately through {@link expectReportedUsage} rather than pinning
+ * numbers that would fail for reasons unrelated to what they cover.
+ * @param result - the settled subagent result.
+ * @returns the result without its `usage` field.
+ */
+function withoutUsage(result: SubagentResult): Omit<SubagentResult, 'usage'> {
+  const { usage: _usage, ...rest } = result
+  return rest
+}
+
+/**
+ * Assert one real run reported well-formed delegated usage.
+ * @param result - the settled subagent result.
+ */
+function expectReportedUsage(result: SubagentResult): void {
+  const usage = result.usage
+  expect(usage).toBeDefined()
+  for (const count of [
+    usage?.uncachedInputTokens,
+    usage?.cacheReadTokens,
+    usage?.cacheWriteTokens,
+    usage?.outputTokens,
+  ]) {
+    expect(typeof count).toBe('number')
+    expect(count).toBeGreaterThanOrEqual(0)
+  }
+}
+
 describe('real Claude Agent SDK 0.3.220 and its distributed Claude Code 2.1.220 fixture', {
   timeout: 60_000,
 }, () => {
@@ -303,10 +337,12 @@ describe('real Claude Agent SDK 0.3.220 and its distributed Claude Code 2.1.220 
     expect(version.stdout.trim()).toBe('2.1.220 (Claude Code)')
 
     const run = await startRequest(harness, task)
-    await expect(run.result).resolves.toEqual({
+    const settled = await run.result
+    expect(withoutUsage(settled)).toEqual({
       output: [{ type: 'text', text: sentinel }],
       stopReason: 'completed',
     })
+    expectReportedUsage(settled)
     await run.dispose()
 
     const initMessage = observedSdkMessages.find(
@@ -428,10 +464,12 @@ describe('real Claude Agent SDK 0.3.220 and its distributed Claude Code 2.1.220 
       signal: new AbortController().signal,
     })).rejects.toMatchObject({ code: 'NO_PROVIDER' })
 
-    await expect(bypassRun.result).resolves.toEqual({
+    const bypassSettled = await bypassRun.result
+    expect(withoutUsage(bypassSettled)).toEqual({
       output: [{ type: 'text', text: 'NAMED_BYPASS_RESULT' }],
       stopReason: 'completed',
     })
+    expectReportedUsage(bypassSettled)
     safeController.abort(new Error('cancel only the published safe run'))
     await expect(safeRun.result).resolves.toEqual({
       output: [],
@@ -518,10 +556,12 @@ describe('real Claude Agent SDK 0.3.220 and its distributed Claude Code 2.1.220 
       finalText: 'write complete',
     }, 'bypassPermissions')
     const run = await startRequest(harness, 'Write the requested fixture file.')
-    await expect(run.result).resolves.toEqual({
+    const settled = await run.result
+    expect(withoutUsage(settled)).toEqual({
       output: [{ type: 'text', text: 'write complete' }],
       stopReason: 'completed',
     })
+    expectReportedUsage(settled)
     expect(readFileSync(target, 'utf8')).toBe('bypass write completed')
     await run.dispose()
     await expectQuiescent(harness.handles)
@@ -535,10 +575,12 @@ describe('real Claude Agent SDK 0.3.220 and its distributed Claude Code 2.1.220 
       finalText: 'PLAN_ONLY_RESULT',
     }, 'plan', ['ExitPlanMode'])
     const run = await startRequest(harness, 'Design the fixture change without implementing it.')
-    await expect(run.result).resolves.toEqual({
+    const settled = await run.result
+    expect(withoutUsage(settled)).toEqual({
       output: [{ type: 'text', text: 'PLAN_ONLY_RESULT' }],
       stopReason: 'completed',
     })
+    expectReportedUsage(settled)
     expect(fixture.requests).toHaveLength(2)
     expect(JSON.stringify(fixture.requests[1]?.body.messages))
       .toContain('ExitPlanMode exists but is not enabled in this context')

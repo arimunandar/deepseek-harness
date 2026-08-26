@@ -337,6 +337,15 @@ interface SubagentResult {
    * to 4096 UTF-8 bytes. Consumers present it separately from {@link output}.
    */
   readonly diagnostic?: string
+  /**
+   * Token usage the child reported for its own model requests, when its
+   * protocol reports any. Absence means UNMEASURED, never zero: an
+   * out-of-process child's requests happen in another harness, and a provider
+   * whose protocol carries no usage appends nothing rather than guessing. The
+   * delegation Consumer records a present value as `subagent/usage` in the
+   * delegating session's log.
+   */
+  readonly usage?: SubagentReportedUsage
   /** Why the run ended. A non-`completed` reason means `output` may be partial. */
   readonly stopReason: SubagentStopReason
 }

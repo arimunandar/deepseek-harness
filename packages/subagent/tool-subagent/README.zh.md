@@ -27,6 +27,14 @@
 | `toolFilter` | 每个子 agent 独立的全局工具限制；要求提供方具备 `toolFilter` 能力。 |
 | `maxDepth` | 绝对委派深度上限，默认 `3`（`0` 禁止委派）；数值上限要求 `depthLimit` 能力，缺失时挂载失败。对于预算由子 harness 拥有的进程外提供方，`'provider-managed'` 不发送上限。工具在达到上限时仍然可见；每次尝试启动都会检查调用 agent 的当前深度，被拒绝时返回出错的工具结果。 |
 
+## 分派用量
+
+能读到子 Agent 自身 token 用量的 provider 会把它报在 `SubagentResult.usage` 上，而前台调用会把它作为 `subagent/usage` 记录到**分派方**会话的日志里，并归属到子 Agent id 与 provider 名。进程外子 Agent 在这里不拥有 Session，所以那份日志是它的花费唯一能落下的持久位置；进程内子 Agent 自己的 Session 本就携带其用量，且其 provider 不上报任何用量，因此不会重复计数。
+
+记录发生在失败结果抛出之前，所以一个花了 token 然后失败的 run 仍然被计入。缺席意味着**未测量**而非零——协议里不携带用量的 provider 什么都不追加，读取方必须把它呈现为一个缺口。
+
+模型看不到这一切：无论哪种情况，工具结果都不变。
+
 ## 并发
 
 前台调用和后台调用均并发安全：同一条 assistant 消息中的同级委派会在循环的滚动池（`maxParallelToolCalls`）下重叠执行，结果仍按模型顺序提交。子 agent 在各自的会话中工作，一次运行绝不变更父会话；一次性后台形态对父级拥有状态的唯一写入是注册一个 Task——这是一次同步、可交换、能容忍并发分发的插入，因此重叠的后台调用按分发竞态顺序获得各自的 job id。协调同级工作区效果由模型负责，正如模型已经对后台和可继续子 agent 所承担的那样。见 [并行 subagent Agent Note](../../../.agents/notes/implemented/feature/2026-08-09-parallel-subagent-delegations.zh.md) 和 [并行工具调用 Agent Note](../../../.agents/notes/implemented/feature/2026-07-10-parallel-tool-call-execution.zh.md)。

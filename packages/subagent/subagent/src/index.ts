@@ -66,6 +66,8 @@ import type { ContinuableSetupContribution } from './activation-setup-registry.t
 import { listChildren as listSubagentChildren, listDescendants as listSubagentDescendants } from './list-children.ts'
 import type { SubagentDescendantListEntry, SubagentListEntry } from './list-children.ts'
 import { snapshotSubagentDescriptor } from './descriptor.ts'
+// Side-effect import: registers the `subagent/usage` SessionEventMap member.
+import type {} from './usage.ts'
 import { subagentIdentityProjectionDefinition, subagentTimingProjectionDefinition } from './projection.ts'
 
 export * from './out-of-process.ts'
@@ -96,6 +98,7 @@ export type {
   SubagentDescriptorData,
   SubagentDescriptorInput,
 } from './descriptor.ts'
+export type { SubagentReportedUsage, SubagentUsage } from './usage.ts'
 export { seedDescriptorTurn } from './descriptor-seed.ts'
 export { SubagentError } from './error.ts'
 export { settleRun } from './run-settlement.ts'

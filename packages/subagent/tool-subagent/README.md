@@ -27,6 +27,14 @@ A foreground call passes the execution signal through startup and execution, awa
 | `toolFilter` | Per-child global-tool restriction; requires `toolFilter` capability. |
 | `maxDepth` | Absolute delegation-depth cap, default `3` (`0` forbids delegation); a numeric cap requires the `depthLimit` capability and fails the mount without it. `'provider-managed'` sends no cap for an out-of-process provider whose budget belongs to the child harness. The tool stays visible at the cap; each attempted start checks the calling agent's current depth and returns an errored tool result when rejected. |
 
+## Delegated usage
+
+A provider that can read its child's own token usage reports it on `SubagentResult.usage`, and a foreground call records it in the DELEGATING session's log as `subagent/usage`, attributed to the child id and the provider name. An out-of-process child owns no Session here, so that log is the only durable place its spend can land; an in-process child's own Session already carries its usage and its provider reports none, so nothing is counted twice.
+
+Recording happens before a failing result throws, so a run that spent tokens and then failed is still accounted for. Absence means UNMEASURED rather than zero — a provider whose protocol carries no usage appends nothing, and a reader must present that as a gap.
+
+The model sees none of this: the tool result is unchanged either way.
+
 ## Concurrency
 
 Foreground and background calls are concurrency-safe: sibling delegations in one assistant message overlap under the loop's rolling pool (`maxParallelToolCalls`), and results still commit in model order. Children work in their own sessions and a run never mutates the parent session; the one-shot background form's one parent-owned write — registering a Task — is a synchronous, commutative insertion that tolerates concurrent dispatch, so overlapping background calls acquire their job ids in dispatch-race order. Coordinating sibling workspace effects belongs to the model, exactly as it already does for background and continuable children. See the [parallel subagent Agent Note](../../../.agents/notes/implemented/feature/2026-08-09-parallel-subagent-delegations.md) and the [parallel tool-call Agent Note](../../../.agents/notes/implemented/feature/2026-07-10-parallel-tool-call-execution.md).
