@@ -62,7 +62,9 @@ it('keeps the browser responsive while rendering 100,000 reasoning chunks', asyn
     // Fixture settings deliberately reject writes, so its welcome notice
     // cannot acknowledge. Hide only that test overlay; the assembled chat
     // tree beneath it remains mounted and exercises the production renderer.
-    await activePage.addStyleTag({ content: '[class*="onboardingOverlay"] { display: none !important; }' })
+    await activePage.addStyleTag({
+      content: '[role="presentation"]:has([role="dialog"]) { display: none !important; }',
+    })
     await activePage.locator('[data-sample="bash"]').first().waitFor({ timeout: 30_000 })
 
     await activePage.evaluate(() => {

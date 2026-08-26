@@ -30,6 +30,8 @@
 
 未来若有步骤注册后不把可见内容包进 `OnboardingSurface`，会无遮罩地裸渲染在应用之上；slot 约定的 JSDoc 已把包裹写为注册方的义务。
 
+`OnboardingSurface` 已不复存在：两个首次运行步骤都在对话框里提问，[首次运行对话框的 Agent Note](../architecture/2026-08-26-first-run-connections-dialog.zh.md) 在该原语失去使用方后将其删除。那份 Agent Note 取代的是本文的界面框架词汇，而非本文的决定——界面框架无论由什么绘制，依旧归步骤所有，依旧渲染在步骤的可见分支之内，而这正是重载闪烁保持修复状态的原因。
+
 ## 测试
 
-`packages/client/ui-primitives/tests/onboarding-surface.client.spec.tsx` 钉住原语行为：包裹内容的 body portal、遮罩／展示层类名存在、`#root` 的 `inert` 恰好持续挂载生命周期，以及无 `#root` 的组合。`packages/client/ui-settings-general/tests/settings-root.client.spec.tsx` 钉住反转后的外壳约定：已挂载步骤什么都不渲染时，无接管界面框架、无 inert。`apps/web/tests/onboarding-deepseek-config.e2e.ts` 新增本缺陷的整装回归钉：已配置世界刷新页面，同时在浏览器网络边界扣住所有 `settings.describe` 响应——把步骤的判定窗口从 loopback 下不可见拉宽到数百毫秒，这正是断言保持非空洞的关键——页内 8ms 采样器证明接管界面框架从未挂载、`#root` 从未变为 inert。该文件的既有场景与步骤 spec（`ui-settings-general`、`ui-settings-models`）原样通过——样式表逐字迁移，遮罩选择器与几何钉子得以幸存。
+`packages/client/ui-settings-connections/tests/components.client.spec.tsx` 钉住步骤应当承担的部分：`#root` 的 `inert` 恰好持续步骤提问的那段窗口、卸载时被恢复，以及无 `#root` 的组合仍能渲染。`packages/client/ui-settings-general/tests/settings-root.client.spec.tsx` 钉住反转后的外壳约定：已挂载步骤什么都不渲染时，无接管界面框架、无 inert。`apps/web/tests/onboarding-deepseek-config.e2e.ts` 新增本缺陷的整装回归钉：已配置世界刷新页面，同时在浏览器网络边界扣住所有 `settings.describe` 响应——把步骤的判定窗口从 loopback 下不可见拉宽到数百毫秒，这正是断言保持非空洞的关键——页内 8ms 采样器证明接管界面框架从未挂载、`#root` 从未变为 inert。该文件的既有场景与步骤 spec（`ui-settings-general`、`ui-settings-models`）原样通过。

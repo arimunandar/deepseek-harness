@@ -52,10 +52,12 @@ async function assertBaselineSucceeded(response: Response, method: string): Prom
 }
 
 async function ensureSeedOpen(page: Page): Promise<void> {
-  const welcome = page.locator('[class*="onboardingOverlay"]')
-  if (await welcome.count() > 0) {
-    await welcome.getByRole('button').click()
-    await welcome.waitFor({ state: 'detached', timeout: 15_000 })
+  // The first-run connections step, if this scaffold happens to boot without a
+  // connection: dismissed by its own defer button, addressed by dialog label.
+  const firstRun = page.getByRole('dialog', { name: 'Connect an AI to get started' })
+  if (await firstRun.count() > 0) {
+    await firstRun.getByRole('button', { name: 'Later', exact: true }).click()
+    await firstRun.waitFor({ state: 'detached', timeout: 15_000 })
   }
   const chat = page.getByRole('tab', { name: 'Chat', exact: true })
   // Search is a collapsed header action; expand it so the input is actionable.
