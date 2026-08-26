@@ -98,6 +98,24 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         parameters: [{ name: 'next', description: 'resolved selection accepted by an entry point.' }],
         returns: 'fulfillment after the optional settings write settles.',
       },
+      {
+        signature: 'modelFor(provider: string): string | undefined',
+        description: 'The model one provider route starts from when it becomes the selection.',
+        parameters: [{ name: 'provider', description: 'registered provider route.' }],
+        returns: 'the stored model id, or undefined when this route has no default.',
+      },
+      {
+        signature: 'async saveProviderDefault(provider: string, model: string): Promise<void>',
+        description: 'Record the model one provider route starts from.\n\nA path write rather than a section write, so setting one route\'s default cannot disturb the current selection or another route\'s entry.',
+        parameters: [{ name: 'provider', description: 'registered provider route.' }, { name: 'model', description: 'provider-owned model id.' }],
+        returns: 'fulfillment after the optional settings write settles.',
+      },
+      {
+        signature: 'async clearProviderDefault(provider: string): Promise<void>',
+        description: 'Forget one provider route\'s default, leaving the choice to whoever switches.',
+        parameters: [{ name: 'provider', description: 'registered provider route.' }],
+        returns: 'fulfillment after the optional settings write settles.',
+      },
     ],
   },
   {

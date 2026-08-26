@@ -24,14 +24,26 @@
   - paragraph: 填入各提供方的 API 密钥即可使用其模型。
   - list:
     - listitem:
-      - text: minimax-cn
+      - text: minimax-cn llm-pi-ai
       - img "API 密钥已配置"
       - button "编辑 minimax-cn": 编辑
       - button "删除 minimax-cn": 删除
+      - text: 默认模型
+      - combobox "默认模型":
+        - option "未设置" [selected]
+        - option "MiniMax-M2.7"
+        - option "MiniMax-M2.7-highspeed"
+        - option "MiniMax-M3"
+      - text: 接口地址 https://gateway.minimax.example/v1
     - listitem:
-      - text: Acme Gateway 自定义
+      - text: Acme Gateway 自定义 llm-pi-ai
       - button "编辑 Acme Gateway (acme-gateway)": 编辑
       - button "删除 Acme Gateway (acme-gateway)": 删除
+      - text: 默认模型
+      - combobox "默认模型":
+        - option "未设置" [selected]
+        - option "acme-large"
+      - text: 接口地址 https://gateway.acme.example/v1
   - button "添加提供方":
     - img
     - text: 添加提供方

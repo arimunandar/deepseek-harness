@@ -24,9 +24,16 @@
   - paragraph: 填入各提供方的 API 密钥即可使用其模型。
   - list:
     - listitem:
-      - text: DeepSeek
+      - text: DeepSeek llm-deepseek
       - img "API 密钥缺失"
       - button "编辑 DeepSeek (deepseek-official)": 编辑
+      - text: 默认模型
+      - combobox "默认模型":
+        - option "未设置" [selected]
+        - option "deepseek-v4-flash"
+        - option "deepseek-v4-pro"
+        - option "deepseek-v4-flash-vision-exp"
+      - text: 接口地址 提供方默认
   - text: 提供方
   - combobox "提供方":
     - option "amazon-bedrock"

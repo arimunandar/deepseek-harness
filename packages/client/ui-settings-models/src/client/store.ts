@@ -30,6 +30,12 @@ export interface ProviderRow {
   removable: boolean
   /** The credential reference the resolved profile names, when one does. */
   apiKeyEnv: string | undefined
+  /** The endpoint the resolved profile names, when it overrides the adapter's own. */
+  baseURL: string | undefined
+  /** The model this route starts from, when one is recorded. */
+  defaultModel: string | undefined
+  /** Model ids this route currently serves, for the default-model picker. */
+  models: readonly string[]
   /** Credential state for {@link apiKeyEnv}, once described. */
   credential: CredentialView | undefined
 }
@@ -91,17 +97,44 @@ export function protocolChoices(
   return list.list.map(entry => entry.value).filter((value): value is string => typeof value === 'string')
 }
 
-/** The credential reference a resolved profile names (its `apiKeyEnv` field). */
-function apiKeyEnvOf(
+/** Settings namespace carrying the per-provider default models. */
+export const DEFAULT_MODEL_NS = 'agent-default-model'
+
+/** One non-empty string field of a resolved provider profile. */
+function profileStringOf(
   namespace: SettingsNamespaceView | undefined,
   path: readonly string[],
+  field: string,
   schema: SettingsSchemaOperations,
 ): string | undefined {
   if (namespace === undefined) return undefined
   const profile = schema.getPath(namespace.value, path)
   if (typeof profile !== 'object' || profile === null) return undefined
-  const ref = (profile as { apiKeyEnv?: unknown }).apiKeyEnv
-  return typeof ref === 'string' && ref.length > 0 ? ref : undefined
+  const value = (profile as Record<string, unknown>)[field]
+  return typeof value === 'string' && value.length > 0 ? value : undefined
+}
+
+/**
+ * The model one route starts from, as `agent-default-model` records it.
+ *
+ * A route with no entry answers undefined, which the row renders as "no
+ * default" rather than as a guess: every shipped catalog lists its models in
+ * its own order, so nothing derivable says which one a person wants.
+ * @param namespace - the `agent-default-model` namespace view, when served.
+ * @param provider - registered provider route.
+ * @returns the stored model id, or undefined.
+ */
+function defaultModelOf(
+  namespace: SettingsNamespaceView | undefined,
+  provider: string,
+): string | undefined {
+  if (namespace === undefined) return undefined
+  const section = namespace.value
+  if (typeof section !== 'object' || section === null) return undefined
+  const map = (section as { perProvider?: unknown }).perProvider
+  if (typeof map !== 'object' || map === null) return undefined
+  const model = (map as Record<string, unknown>)[provider]
+  return typeof model === 'string' && model.length > 0 ? model : undefined
 }
 
 /** The models settings page controller (one per settings surface). */
@@ -138,12 +171,18 @@ export class ModelsSettingsStore {
     let providers: ConfigurableProviderView[]
     let writable: boolean
     let views: readonly SettingsNamespaceView[]
+    let catalog: readonly { id: string; models: readonly { id: string }[] }[] = []
     try {
-      const [providersResponse] = await Promise.all([
+      const [providersResponse, modelsResponse] = await Promise.all([
         this.api.llm.providers({}),
+        this.api.llm.models({}),
         this.describeFace.ensure(),
       ])
       if (!providersResponse.result.ok) throw new Error(providersResponse.result.error.message)
+      // Model lists enrich the default-model picker; a route whose models this
+      // build cannot read keeps its row and offers an empty picker rather than
+      // failing the whole page.
+      catalog = modelsResponse.result.ok ? modelsResponse.result.value.groups : []
       const mirrored = this.describeFace.getSnapshot()
       if (mirrored.view === undefined) {
         throw new Error(mirrored.error ?? 'settings are unavailable in this browser')
@@ -160,6 +199,7 @@ export class ModelsSettingsStore {
       return
     }
     const namespaces = new Map(views.map(view => [view.ns, view]))
+    const modelsByProvider = new Map(catalog.map(group => [group.id, group.models.map(model => model.id)]))
     const rows: ProviderRow[] = providers.map((entry) => {
       const namespace = namespaces.get(entry.settingsNs)
       const configured = namespace !== undefined
@@ -172,7 +212,10 @@ export class ModelsSettingsStore {
         entry,
         configured,
         removable,
-        apiKeyEnv: apiKeyEnvOf(namespace, entry.settingsPath, this.schema),
+        apiKeyEnv: profileStringOf(namespace, entry.settingsPath, 'apiKeyEnv', this.schema),
+        baseURL: profileStringOf(namespace, entry.settingsPath, 'baseURL', this.schema),
+        defaultModel: defaultModelOf(namespaces.get(DEFAULT_MODEL_NS), entry.provider),
+        models: modelsByProvider.get(entry.provider) ?? [],
         credential: undefined,
       }
     })

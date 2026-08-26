@@ -679,3 +679,55 @@ select.input {
   font-size: 13px;
   overflow-wrap: anywhere;
 }
+
+/* A quiet second line under the row title: caption size and the secondary
+   label tone, so the provider name stays the only thing that reads as a
+   heading. Two definition pairs on one baseline, wrapping together rather than
+   letting a long endpoint push the model picker onto its own line. */
+.rowMeta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 18px;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.rowMetaField {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.rowMetaLabel {
+  flex: none;
+  color: var(--dsw-alias-label-tertiary);
+}
+
+/* An endpoint is long and rarely the thing being read, so it truncates rather
+   than widening the row; the full value stays reachable through the editor. */
+.rowMetaValue {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--dsw-alias-label-secondary);
+}
+
+/* The shared control, shrunk to caption scale: a row-level picker that matched
+   the editor's 32px fields would read as the row's primary action rather than
+   as one of its facts. */
+.rowMetaSelect {
+  width: auto;
+  max-width: 220px;
+  height: 26px;
+  padding: 0 28px 0 8px;
+  font-size: 12px;
+  line-height: 18px;
+  background-position: right 8px center;
+  color: var(--dsw-alias-label-primary);
+}
+
+.rowMetaSelect:disabled {
+  color: var(--dsw-alias-label-tertiary);
+}

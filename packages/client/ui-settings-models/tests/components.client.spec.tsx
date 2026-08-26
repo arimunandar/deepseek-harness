@@ -7,6 +7,7 @@ import { bindSnapshotSelector } from '@deepseek-ai/dsh-client-test-runtime'
 import type { RpcResponse, SettingsNamespaceView } from '@deepseek-ai/dsh-api-remotes/client'
 import {
   ModelsSection, needsSetup, providerCopy, providerTargetLabel, removeProviderProfile,
+  saveProviderDefaultModel,
 } from '../src/client/ModelsSection.tsx'
 import type { ModelsSectionInjected, ModelsSectionProps } from '../src/client/ModelsSection.tsx'
 import { pathOps } from '../src/client/ProviderEditor.tsx'
@@ -122,6 +123,22 @@ function wireNamespaces(): SettingsNamespaceView[] {
       secrets: [],
       revision: 0,
     },
+    {
+      // The namespace the per-provider default models live in, so a row can
+      // show and change the model its route starts from.
+      ns: 'agent-default-model',
+      schema: JSON.parse(JSON.stringify(Schema.object({
+        provider: Schema.string(),
+        model: Schema.string(),
+        perProvider: Schema.dict(Schema.string()),
+      }).toJSON())) as unknown,
+      value: { provider: 'deepseek-official', model: 'deepseek-v4-flash', perProvider: { openai: 'gpt-5.4' } },
+      base: { provider: 'deepseek-official', model: 'deepseek-v4-flash' },
+      user: { perProvider: { openai: 'gpt-5.4' } },
+      applies: 'live',
+      secrets: [],
+      revision: 0,
+    },
   ]
 }
 
@@ -160,7 +177,12 @@ function scriptedFace(overrides: {
           { provider: 'plain', displayName: 'plain', settingsNs: 'llm-plain', settingsPath: ['profiles', 'plain'], active: false },
         ],
       }))),
-      models: vi.fn(() => Promise.resolve(ok({ groups: [], failures: [] }))),
+      // One route with a real catalog, so a row can offer a default-model
+      // picker; every other route keeps an empty one and renders it inert.
+      models: vi.fn(() => Promise.resolve(ok({
+        groups: [{ id: 'openai', name: 'openai', models: [{ id: 'gpt-5.4' }, { id: 'gpt-5.6-terra' }] }],
+        failures: [],
+      }))),
     },
     settings: {
       describe: vi.fn(() => Promise.resolve(ok({ writable: true, hasDocument: false, namespaces: wireNamespaces() }))),
@@ -314,6 +336,9 @@ describe('ModelsSection', () => {
       configured: true,
       removable: false,
       apiKeyEnv: 'X',
+      baseURL: undefined,
+      defaultModel: undefined,
+      models: [],
       credential,
     })
     expect(needsSetup(row(undefined), false)).toBe(true)
@@ -1271,6 +1296,110 @@ describe('ModelsSection', () => {
       ops: [{ op: 'unset', path: ['ghost-profile'] }],
     })
     expect(replace).not.toHaveBeenCalled()
+  })
+
+  it('names the adapter each route belongs to, so two routes for one vendor are distinguishable', async () => {
+    await mountSection()
+    // `deepseek-official` (llm-deepseek) and a pi-ai `deepseek` route differ
+    // only by case in their display names; the owning adapter is what a person
+    // can actually tell them apart by.
+    expect(screen.getAllByText('llm-deepseek').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('llm-pi-ai').length).toBeGreaterThan(0)
+  })
+
+  it('shows the model each route starts from, and its endpoint, on the row', async () => {
+    await mountSection()
+    // The route with a recorded default shows it; the picker offers that
+    // route's own catalog plus an explicit "not set".
+    const pickers = screen.getAllByTitle(en.defaultModelHint) as HTMLSelectElement[]
+    const picker = pickers.find(node => node.value === 'gpt-5.4') as HTMLSelectElement
+    expect(picker).toBeTruthy()
+    expect([...picker.options].map(option => option.value))
+      .toEqual(['', 'gpt-5.4', 'gpt-5.6-terra'])
+    // A route whose profile names no endpoint says so rather than showing a blank.
+    expect(screen.getAllByText(en.baseUrlAdapter).length).toBeGreaterThan(0)
+  })
+
+  it('writes the route default the picker selects', async () => {
+    const { mutate } = await mountSection()
+    const picker = screen.getAllByTitle(en.defaultModelHint)
+      .find(node => (node as HTMLSelectElement).value === 'gpt-5.4') as HTMLSelectElement
+    fireEvent.change(picker, { target: { value: 'gpt-5.6-terra' } })
+    await vi.waitFor(() => {
+      expect(mutate.mock.calls[0]?.[0]).toEqual({
+        ns: 'agent-default-model',
+        ops: [{ op: 'set', path: ['perProvider', 'openai'], value: 'gpt-5.6-terra' }],
+      })
+    })
+  })
+
+  it('offers no picker for a route whose models this build cannot read', async () => {
+    await mountSection()
+    // Every row renders a picker; one with no catalog is inert rather than
+    // absent, so the row stays the same shape as its neighbours.
+    const inert = screen.getAllByTitle(en.defaultModelHint)
+      .filter(node => (node as HTMLSelectElement).disabled)
+    expect(inert.length).toBeGreaterThan(0)
+  })
+
+  it('records a route default as one path write into the shared namespace', async () => {
+    const { face, mutate, replace, controller } = await mountSection()
+    await saveProviderDefaultModel(
+      face as unknown as Parameters<typeof saveProviderDefaultModel>[0],
+      controller,
+      'openai',
+      'gpt-5.6-terra',
+    )
+    // A path write, so recording one route's default cannot disturb the
+    // current selection or another route's entry.
+    expect(mutate.mock.calls[0]?.[0]).toEqual({
+      ns: 'agent-default-model',
+      ops: [{ op: 'set', path: ['perProvider', 'openai'], value: 'gpt-5.6-terra' }],
+    })
+    expect(replace).not.toHaveBeenCalled()
+  })
+
+  it('forgets a route default when the picker is cleared', async () => {
+    const { face, mutate, controller } = await mountSection()
+    await saveProviderDefaultModel(
+      face as unknown as Parameters<typeof saveProviderDefaultModel>[0],
+      controller,
+      'openai',
+      '',
+    )
+    // Empty means "ask me each time" rather than a stored blank.
+    expect(mutate.mock.calls[0]?.[0]).toEqual({
+      ns: 'agent-default-model',
+      ops: [{ op: 'unset', path: ['perProvider', 'openai'] }],
+    })
+  })
+
+  it('reports a refused route-default write without touching the snapshot', async () => {
+    const { face, controller } = await mountSection({
+      mutate: vi.fn(() => Promise.resolve(fail('read-only'))),
+    })
+    const before = controller.store.getSnapshot().rows
+    const failure = await saveProviderDefaultModel(
+      face as unknown as Parameters<typeof saveProviderDefaultModel>[0],
+      controller,
+      'openai',
+      'gpt-5.6-terra',
+    )
+    expect(failure).toBe('read-only')
+    expect(controller.store.getSnapshot().rows).toBe(before)
+  })
+
+  it('reports a rejected transport for a route-default write', async () => {
+    const { face, controller } = await mountSection({
+      mutate: vi.fn(() => Promise.reject(new Error('transport gone'))),
+    })
+    const failure = await saveProviderDefaultModel(
+      face as unknown as Parameters<typeof saveProviderDefaultModel>[0],
+      controller,
+      'openai',
+      'gpt-5.6-terra',
+    )
+    expect(failure).toBe('transport gone')
   })
 
   it('keeps the snapshot untouched and reports the message when a removal write is refused', async () => {

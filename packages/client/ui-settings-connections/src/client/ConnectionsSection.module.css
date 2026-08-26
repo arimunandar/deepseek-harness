@@ -15,14 +15,14 @@
   margin: 0;
   font-size: 18px;
   font-weight: 600;
-  color: var(--dsw-alias-text-primary);
+  color: var(--dsw-alias-label-primary);
 }
 
 .intro {
   margin: 0;
   font-size: 13px;
   line-height: 1.6;
-  color: var(--dsw-alias-text-tertiary);
+  color: var(--dsw-alias-label-tertiary);
 }
 
 .status {
@@ -30,7 +30,7 @@
   align-items: center;
   gap: 12px;
   font-size: 13px;
-  color: var(--dsw-alias-text-secondary);
+  color: var(--dsw-alias-label-secondary);
 }
 
 .cards {

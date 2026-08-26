@@ -94,6 +94,20 @@ function attentionKey(
 }
 
 /**
+ * The first character of a backend's name, as a person reads it.
+ *
+ * Grapheme-segmented rather than indexed: a label can begin with an emoji or a
+ * combining pair, and taking one code unit — or one code point — would render
+ * half of it.
+ * @param label - the backend's product name.
+ * @returns its first grapheme, or the empty string for an empty name.
+ */
+function monogram(label: string): string {
+  const [first] = new Intl.Segmenter(undefined, { granularity: 'grapheme' }).segment(label)
+  return first?.segment ?? ''
+}
+
+/**
  * Render the open question of a running sign-in.
  * @param props - the question, the copy, and where the answer goes.
  * @returns the question form.
@@ -171,6 +185,9 @@ export function ConnectionCard(props: ConnectionCardProps): ReactNode {
   return (
     <section className={css.card} aria-labelledby={`connection-${row.id}`}>
       <header className={css.head}>
+        {/* A monogram, not a vendor logo: no asset per backend, and nothing to
+            go stale when a vendor rebrands. */}
+        <span className={css.mark} aria-hidden="true">{monogram(row.label)}</span>
         <div className={css.identity}>
           <h3 className={css.name} id={`connection-${row.id}`}>{row.label}</h3>
           <p className={css.description}>{row.description}</p>

@@ -29,6 +29,7 @@ async function boot(): Promise<{
   ctx: Context
   settingsFiber: Context['fiber']
   defaultModel: AgentDefaultModelConfig
+  settings: MemorySettings
 }> {
   const ctx = new Context()
   const settingsFiber = ctx.plugin(MemorySettings)
@@ -37,7 +38,7 @@ async function boot(): Promise<{
     provider: 'deepseek-official',
     model: 'deepseek-v4-flash',
   })
-  return { ctx, settingsFiber, defaultModel: ctx.agentDefaultModel }
+  return { ctx, settingsFiber, defaultModel: ctx.agentDefaultModel, settings: ctx.get('settings') as unknown as MemorySettings }
 }
 
 describe('AgentDefaultModelConfig', () => {
@@ -94,5 +95,64 @@ describe('AgentDefaultModelConfig', () => {
     await ctx.agentDefaultModel.saveSelection({ provider: 'other', model: 'other' })
     expect(ctx.agentDefaultModel.currentSelection()).toEqual({ provider: 'p', model: 'm' })
     await ctx.fiber.dispose()
+  })
+})
+
+describe('per-provider defaults', () => {
+  it('answers nothing for a route with no default', async () => {
+    const { defaultModel } = await boot()
+    expect(defaultModel.modelFor('anthropic')).toBeUndefined()
+  })
+
+  it('records one route default without disturbing the current selection', async () => {
+    const { defaultModel } = await boot()
+    await defaultModel.saveProviderDefault('anthropic', 'claude-sonnet-5')
+    expect(defaultModel.modelFor('anthropic')).toBe('claude-sonnet-5')
+    expect(defaultModel.currentSelection()).toMatchObject({
+      provider: 'deepseek-official',
+      model: 'deepseek-v4-flash',
+    })
+  })
+
+  it('keeps one route default when another is written', async () => {
+    const { defaultModel } = await boot()
+    await defaultModel.saveProviderDefault('anthropic', 'claude-sonnet-5')
+    await defaultModel.saveProviderDefault('openai-codex', 'gpt-5.6-terra')
+    expect(defaultModel.modelFor('anthropic')).toBe('claude-sonnet-5')
+    expect(defaultModel.modelFor('openai-codex')).toBe('gpt-5.6-terra')
+  })
+
+  it('keeps every route default across a complete-section selection write', async () => {
+    const { defaultModel } = await boot()
+    await defaultModel.saveProviderDefault('anthropic', 'claude-sonnet-5')
+    // saveSelection replaces the whole section so a stale effort cannot
+    // survive; the per-route map must ride along rather than be cleared.
+    await defaultModel.saveSelection({ provider: 'anthropic', model: 'claude-opus-5' })
+    expect(defaultModel.modelFor('anthropic')).toBe('claude-sonnet-5')
+    expect(defaultModel.currentSelection()).toMatchObject({ model: 'claude-opus-5' })
+  })
+
+  it('forgets one route default and leaves the rest', async () => {
+    const { defaultModel } = await boot()
+    await defaultModel.saveProviderDefault('anthropic', 'claude-sonnet-5')
+    await defaultModel.saveProviderDefault('xiaomi', 'mimo-v2.5-pro')
+    await defaultModel.clearProviderDefault('anthropic')
+    expect(defaultModel.modelFor('anthropic')).toBeUndefined()
+    expect(defaultModel.modelFor('xiaomi')).toBe('mimo-v2.5-pro')
+  })
+
+  it('writes a selection unchanged while no route default exists', async () => {
+    const { defaultModel, settings } = await boot()
+    await defaultModel.saveSelection({ provider: 'anthropic', model: 'claude-opus-5' })
+    // Nothing to carry: the section holds the selection alone.
+    expect(settings.doc[AGENT_DEFAULT_MODEL_SETTINGS_NAMESPACE]).not.toHaveProperty('perProvider')
+  })
+
+  it('keeps its composition entry usable with no settings provider mounted', async () => {
+    const ctx = new Context()
+    await ctx.plugin(AgentDefaultModelConfig, { provider: 'deepseek-official', model: 'deepseek-v4-flash' })
+    await expect(ctx.agentDefaultModel.saveProviderDefault('anthropic', 'claude-sonnet-5')).resolves.toBeUndefined()
+    await expect(ctx.agentDefaultModel.clearProviderDefault('anthropic')).resolves.toBeUndefined()
+    expect(ctx.agentDefaultModel.modelFor('anthropic')).toBeUndefined()
   })
 })

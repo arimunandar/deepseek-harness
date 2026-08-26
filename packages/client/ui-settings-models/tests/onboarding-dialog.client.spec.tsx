@@ -86,6 +86,7 @@ function harness(options: {
   })
   const face = {
     llm: {
+      models: () => Promise.resolve(ok({ groups: [], failures: [] })),
       providers: () => {
         if (options.providersReject === true) return Promise.reject(new Error('provider transport unavailable'))
         return Promise.resolve(ok({
