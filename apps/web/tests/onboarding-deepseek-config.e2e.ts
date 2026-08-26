@@ -25,6 +25,11 @@ const WELCOME_EXPECTED = join(SNAPSHOT_DIR, 'welcome.expected.md')
 const MISSING_EXPECTED = join(SNAPSHOT_DIR, 'missing.expected.md')
 const MODELS_EXPECTED = join(SNAPSHOT_DIR, 'models.expected.md')
 const MODE = webSnapshotMode()
+/** The connections step's Chinese heading, which is also its dialog aria-label. */
+const CONNECTIONS_STEP_TITLE = '先连接一个 AI'
+/** Both first-run dialogs, addressed the way every other dialog in this suite is. */
+const CONNECTIONS_STEP_DIALOG = `[role="dialog"][aria-label="${CONNECTIONS_STEP_TITLE}"]`
+const WELCOME_DIALOG = `[role="dialog"][aria-label="${WELCOME_NOTICE_COPY.zh.title}"]`
 
 describe.skipIf(MODE === 'record')('web e2e: first-run key setup through the connections step', () => {
   let scaffold: WebScaffold
@@ -77,14 +82,14 @@ describe.skipIf(MODE === 'record')('web e2e: first-run key setup through the con
     await credentialStep.waitFor({ timeout: 15_000 })
     const keyInput = credentialStep.getByLabel('API 密钥', { exact: true })
     await keyInput.waitFor({ timeout: 10_000 })
-    const initial = await captureStableAria(page, '[class*="onboardingStage"]', scaffold.workspaceCwd)
+    const initial = await captureStableAria(page, CONNECTIONS_STEP_DIALOG, scaffold.workspaceCwd)
     await compareOrRefreshGolden(MISSING_EXPECTED, initial, MODE)
 
     const secret = `dsh_onboarding_${randomBytes(12).toString('hex')}`
     await keyInput.fill(secret)
     await credentialStep.getByRole('button', { name: '保存' }).click()
     // The step ends itself the moment a connection becomes usable.
-    await page.getByText('先连接一个 AI').waitFor({ state: 'detached', timeout: 15_000 })
+    await page.getByText(CONNECTIONS_STEP_TITLE).waitFor({ state: 'detached', timeout: 15_000 })
     expect(await page.locator('#root').evaluate(root => (root as HTMLElement).inert)).toBe(false)
 
     const stored = await readFile(join(scaffold.harnessHome, '.credentials.yaml'), 'utf8')
@@ -117,7 +122,7 @@ describe.skipIf(MODE === 'record')('web e2e: first-run key setup through the con
     acknowledgeReloadConnectionLoss(tripwire, secondReloadWarnings)
     await page.waitForSelector('[class*="frame"]', { timeout: 15_000 })
     expect(await page.getByRole('dialog', { name: WELCOME_NOTICE_COPY.zh.title }).count()).toBe(0)
-    expect(await page.getByText('先连接一个 AI').count()).toBe(0)
+    expect(await page.getByText(CONNECTIONS_STEP_TITLE).count()).toBe(0)
 
     // An old acknowledgement means materially revised copy: welcome returns,
     // while the already-configured provider step remains complete.
@@ -130,7 +135,7 @@ describe.skipIf(MODE === 'record')('web e2e: first-run key setup through the con
     await welcome.waitFor({ timeout: 15_000 })
     await welcome.getByRole('button', { name: WELCOME_NOTICE_COPY.zh.continueLabel }).click()
     await welcome.waitFor({ state: 'detached', timeout: 15_000 })
-    expect(await page.getByText('先连接一个 AI').count()).toBe(0)
+    expect(await page.getByText(CONNECTIONS_STEP_TITLE).count()).toBe(0)
 
     expect((await page.content()).includes(secret)).toBe(false)
     expect((await page.locator('body').ariaSnapshot()).includes(secret)).toBe(false)
@@ -142,10 +147,9 @@ describe.skipIf(MODE === 'record')('web e2e: first-run key setup through the con
   it('never paints the takeover chrome on a configured reload, even with the settings join held open', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-onboarding-configured-reload'))
     // Regression pin for the reload flash: both steps are satisfied, yet each
-    // must load private facts before deciding not to show. The connections
-    // step is sampled by its takeover stage rather than a dialog label,
-    // because it paints a surface rather than a modal. Dialog chrome lives
-    // inside each visible branch, so the deciding window paints and blocks
+    // must load private facts before deciding not to show. Both steps are
+    // dialogs, so both are sampled by aria-label. Dialog chrome lives inside
+    // each visible branch, so the deciding window paints and blocks
     // nothing. Holding settings.describe widens that window from loopback
     // RTT scale to a deterministic hundreds of milliseconds, removing all
     // timing dependence from the sampler assertions below.
@@ -154,18 +158,14 @@ describe.skipIf(MODE === 'record')('web e2e: first-run key setup through the con
     // navigations (init scripts re-run per navigation); that stays harmless
     // because no later scenario in this file legitimately shows the
     // takeover, and only this test reads __takeoverSightings.
-    await page.addInitScript(() => {
+    await page.addInitScript((selector: string) => {
       const sightings: string[] = []
       ;(window as unknown as { __takeoverSightings: string[] }).__takeoverSightings = sightings
       setInterval(() => {
-        if (document.querySelector(
-          '[role="dialog"][aria-label="内测声明"], [class*="onboardingStage"]',
-        ) !== null) {
-          sightings.push('chrome')
-        }
+        if (document.querySelector(selector) !== null) sightings.push('chrome')
         if (document.getElementById('root')?.inert === true) sightings.push('inert')
       }, 8)
-    })
+    }, `${WELCOME_DIALOG}, ${CONNECTIONS_STEP_DIALOG}`)
     // EVERY settings.describe issued before the release is held — not just
     // the first — so the pin cannot silently collapse back to loopback
     // timing if a second boot-time consumer of the join ever appears.
@@ -191,7 +191,7 @@ describe.skipIf(MODE === 'record')('web e2e: first-run key setup through the con
     expect(await page.evaluate(() =>
       (window as unknown as { __takeoverSightings: string[] }).__takeoverSightings)).toEqual([])
     expect(await page.getByRole('dialog', { name: WELCOME_NOTICE_COPY.zh.title }).count()).toBe(0)
-    expect(await page.getByText('先连接一个 AI').count()).toBe(0)
+    expect(await page.getByText(CONNECTIONS_STEP_TITLE).count()).toBe(0)
     expect(tripwire.pageErrors).toEqual([])
   }, 60_000)
 

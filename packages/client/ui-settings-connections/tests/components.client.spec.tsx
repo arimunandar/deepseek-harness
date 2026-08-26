@@ -421,7 +421,7 @@ describe('the first-run step', () => {
     expect(complete).toHaveBeenCalled()
   })
 
-  it('takes a key without leaving the takeover', () => {
+  it('takes a key without leaving the step', () => {
     const bench = controllerFor({
       ...EMPTY_CONNECTIONS_STATE,
       status: 'ready',
@@ -431,8 +431,61 @@ describe('the first-run step', () => {
       {...ownerProps()} complete={vi.fn()} controller={bench.controller} useConnections={bench.useSnapshot} t={t} />)
     fireEvent.change(screen.getByLabelText(en.keyLabel), { target: { value: 'sk-typed' } })
     fireEvent.click(screen.getByRole('button', { name: en.keySave }))
-    // The step covers both ways in, which is what lets it be the only takeover.
+    // The step covers both ways in, which is what lets it be the only one asked.
     expect(bench.calls.saveKey).toHaveBeenCalledWith('deepseek', 'sk-typed')
+  })
+
+  it('asks inside a dialog labelled by its own heading', () => {
+    const bench = controllerFor({ ...EMPTY_CONNECTIONS_STATE, status: 'ready', rows: [view()] })
+    render(<ConnectionsOnboarding
+      {...ownerProps()} complete={vi.fn()} controller={bench.controller} useConnections={bench.useSnapshot} t={t} />)
+    const dialog = screen.getByRole('dialog', { name: en.onboardingHeading })
+    expect(dialog.getAttribute('aria-modal')).toBe('true')
+  })
+
+  it('ignores Escape and a mask click, because deferring is recorded', () => {
+    const bench = controllerFor({ ...EMPTY_CONNECTIONS_STATE, status: 'ready', rows: [view()] })
+    const complete = vi.fn()
+    render(<ConnectionsOnboarding
+      {...ownerProps()} complete={complete} controller={bench.controller} useConnections={bench.useSnapshot} t={t} />)
+    fireEvent.keyDown(document, { key: 'Escape' })
+    fireEvent.click(document.querySelector('[aria-hidden="true"]')!)
+    // Only the defer button records the decision; neither dismissal ends the step.
+    expect(complete).not.toHaveBeenCalled()
+    expect(screen.getByRole('dialog', { name: en.onboardingHeading })).toBeTruthy()
+  })
+
+  it('holds the application root inert only while it is asking', () => {
+    const appRoot = document.createElement('div')
+    appRoot.id = 'root'
+    // jsdom leaves the property absent until it is assigned; a browser always
+    // reflects the attribute, and the step restores whatever it found.
+    appRoot.inert = false
+    document.body.appendChild(appRoot)
+    try {
+      const idle = controllerFor(EMPTY_CONNECTIONS_STATE)
+      const { rerender, unmount } = render(<ConnectionsOnboarding
+        {...ownerProps()} complete={vi.fn()} controller={idle.controller} useConnections={idle.useSnapshot} t={t} />)
+      // Deciding paints nothing, so it must block nothing either.
+      expect(appRoot.inert).toBe(false)
+
+      const asking = controllerFor({ ...EMPTY_CONNECTIONS_STATE, status: 'ready', rows: [view()] })
+      rerender(<ConnectionsOnboarding
+        {...ownerProps()} complete={vi.fn()} controller={asking.controller} useConnections={asking.useSnapshot} t={t} />)
+      expect(appRoot.inert).toBe(true)
+
+      unmount()
+      expect(appRoot.inert).toBe(false)
+    } finally {
+      appRoot.remove()
+    }
+  })
+
+  it('renders without an #root element, for compositions that mount elsewhere', () => {
+    const bench = controllerFor({ ...EMPTY_CONNECTIONS_STATE, status: 'ready', rows: [view()] })
+    render(<ConnectionsOnboarding
+      {...ownerProps()} complete={vi.fn()} controller={bench.controller} useConnections={bench.useSnapshot} t={t} />)
+    expect(screen.getByText(en.onboardingHeading)).toBeTruthy()
   })
 
   it('loads the directory and ends itself once a connection lands', () => {
