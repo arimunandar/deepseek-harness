@@ -119,12 +119,15 @@ async function tightenModes(dir: string): Promise<void> {
  * not one file. Symlinks are dereferenced so the copy is self-contained
  * rather than a set of links back into the install it was copied from.
  *
- * The copied metadata is then rewritten: the source's description is kept
- * (the file is the author's to edit afterwards), but its name and roster
- * `order` are not — a copy presenting itself identically to its source, or
- * sorted into the shipped set's declared order, would make the roster stop
- * distinguishing them. With no name given and no description to keep, the
- * file is removed so the copy publishes nothing rather than a blank.
+ * The copied metadata is then rewritten. The name and roster `order` are
+ * dropped — a copy presenting itself identically to its source, or sorted into
+ * the shipped set's declared order, would make the roster stop distinguishing
+ * them. The description is kept only from a `user` source, where it is text an
+ * author wrote: a `system` preset's description is the fallback behind
+ * localized display copy, so carrying it forward publishes one fixed language
+ * in a surface the reader chose the language of. With no name given and no
+ * description to keep, the file is removed so the copy publishes nothing
+ * rather than a blank.
  * @param roots - the configured roots; the first `user` one receives the copy.
  * @param source - the resolved preset the copy starts from.
  * @param id - the new preset's id, which becomes its directory name.
@@ -150,9 +153,13 @@ export async function copyComposition(
       recursive: true, dereference: true, force: false, errorOnExist: true,
     })
     await tightenModes(dir)
+    // A shipped preset's own description exists only as the fallback behind
+    // localized copy, so it is not the author's starting point that a `user`
+    // source's description is.
+    const inheritedDescription = source.trust === 'user' ? source.description : undefined
     const rendered = renderPresetMetadata({
       ...name === undefined ? {} : { name },
-      ...source.description === undefined ? {} : { description: source.description },
+      ...inheritedDescription === undefined ? {} : { description: inheritedDescription },
     })
     const metadataPath = join(dir, METADATA_FILE)
     if (rendered === undefined) {
