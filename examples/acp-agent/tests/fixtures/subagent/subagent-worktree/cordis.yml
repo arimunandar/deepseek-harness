@@ -1,0 +1,52 @@
+# Test-only composition: the in-process worktree subagent backend on the real
+# Loader/app path. The scripted lead delegates once; the role child runs in a
+# git worktree of the process cwd, which the driving e2e prepares as a real
+# repository. The assertion is the persisted child session header's cwd, not
+# model text — the session log is where the workspace decision is durable.
+- id: mock-llm
+  name: './mock-worktree-llm.ts'
+
+- id: subagent
+  name: '@deepseek-ai/dsh-subagent'
+
+# Worktree provisioning runs git through the subprocess seam.
+- id: subprocess
+  name: '@deepseek-ai/dsh-subprocess-local'
+
+- id: subagent-worktree
+  name: '@deepseek-ai/dsh-subagent-worktree-in-process'
+  config:
+    providerName: worktree
+    root: !!js process.cwd() + '/.worktrees'
+
+- id: tool-subagent
+  name: '@deepseek-ai/dsh-tool-subagent'
+  config:
+    provider: worktree
+    toolName: subagent
+    backgroundMode: one-shot
+    enableRunInBackground: false
+    maxDepth: 1
+    agentOptions:
+      provider: mock
+      model: mock-role
+
+- id: agent-spine
+  name: '@deepseek-ai/dsh-agent-spine-demo'
+  config:
+    agents:
+      - id: main
+        provider: mock
+        model: mock-lead
+        cwd: !!js process.cwd()
+    persona: 'Test worktree subagent workspace isolation.'
+    workspaceContext: false
+
+- id: persistence
+  name: '@deepseek-ai/dsh-session-persistence-jsonl'
+  config:
+    root: './.sessions'
+    compression: 'none'
+
+- id: checkpoint-policy
+  name: '@deepseek-ai/dsh-session-checkpoint-policy'

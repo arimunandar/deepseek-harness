@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-本包是两个进程内提供方共用的运行驱动器。spawn 不传入会话初始内容；fork 传入父 agent（智能体）已完成轮次的前缀。其余机制，包括深度、子 agent 创建、可选的子 agent 定制、结果读取、取消和 dispose（资源释放），都在此共用同一套实现。
+本包是各个进程内提供方共用的运行驱动器。spawn 不传入会话初始内容；fork 传入父 agent（智能体）已完成轮次的前缀；worktree 传入一个已配置好的工作区。其余机制，包括深度、子 agent 创建、可选的子 agent 定制、结果读取、取消和 dispose（资源释放），都在此共用同一套实现。
 
 ## 启动约定
 
@@ -28,9 +28,13 @@
 
 兑现后，调用方拥有该运行。提供方插件卸载不会撤销它。`dispose()` 会移除实时中止监听器、记录取消，并委托给返回的 `AgentHandle.dispose()`；后者通过经记忆化的完全停稳事务停止循环、移除 agent 和会话，并撤销作用域内的注册。取消流程会接管所有尚未完成的进行中结果，并将其报告为 `aborted`；已经完成的轮次仍保持完成状态。
 
-## spawn 与 fork 输入
+## 提供方输入
 
-`InProcessRunOptions` 的形态为 `{ seed?: SessionEvent[] }`。spawn 省略该值。fork 提供已配平的已完成轮次前缀，并记录其长度，确保结果读取器不会把作为初始内容的父 agent 消息误认为子 agent 输出。
+`InProcessRunOptions` 的形态为 `{ seed?: SessionEvent[], cwd?: string }`，每个进程内提供方最多提供其中之一。
+
+`seed` 是 fork 已配平的已完成轮次前缀；驱动器记录其长度，确保结果读取器不会把作为初始内容的父 agent 消息误认为子 agent 输出。spawn 省略该值。
+
+`cwd` 替换子 agent 本会经由 `childSessionMeta` 继承到的父级 cwd，仅在该子 agent 的会话头部遮蔽它。凡是读取会话 cwd 的能力都随之改变——沙箱策略的 `workspace-write` 边界、相对路径解析、shell 启动——所以提供方给出此值是为了隔离子 agent 的工作区，而不是为了给出某种暗示。提供该值的提供方拥有该目录的全部生命周期，包括它所包装的 run 释放之后的拆除；驱动器不创建也不移除任何目录。
 
 深度强制在 `startInProcessRun` 内部完成：它通过 `delegationDepthOf` 读取父 agent 深度（持久化的 `SessionHeader.delegationDepth` 具有权威性；运行时 `AgentOptions.subagentDepth` 可以加深但绝不能降低该值，因此恢复后的子 agent 会保留预算），缺失值按顶层深度零处理，拒绝格式错误的存储值，并报告尝试的子 agent 深度超过 `maxDepth`。超过安全整数范围、无法表示的深度会触发 `RangeError`。子 agent 深度写入子 agent header，因此会在持久化和恢复后保留。
 

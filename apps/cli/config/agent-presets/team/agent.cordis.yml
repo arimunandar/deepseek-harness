@@ -137,12 +137,20 @@
 # the delegation TOOLS that resolve them. `workflows` is preset-plane, so the
 # engine and its consumer share the entry-local realm below.
 #
-# Every role uses `provider: spawn` — a FRESH child with no lead history. That
-# is the whole reason a role's model can differ from the lead's: `fork` would
-# replay the lead's DeepSeek turns to another vendor, paying that vendor's
-# input rate for a transcript it did not produce and discarding prefix-cache
-# reuse on both sides. Fresh children mean each role's prompt must be
-# self-contained, which is what the lead persona above asks for.
+# Every role starts a FRESH child with no lead history. That is the whole
+# reason a role's model can differ from the lead's: `fork` would replay the
+# lead's DeepSeek turns to another vendor, paying that vendor's input rate for
+# a transcript it did not produce and discarding prefix-cache reuse on both
+# sides. Fresh children mean each role's prompt must be self-contained, which
+# is what the lead persona above asks for.
+#
+# The engineer uses `provider: worktree` rather than `spawn`, so it works in
+# its own git checkout of the lead's HEAD. That is what makes concurrent roles
+# safe: the read-only roles cannot write at all, and the one role that can
+# write cannot reach the lead's files. It also means the engineer does NOT see
+# the lead's uncommitted work, and its result lands on a branch rather than in
+# the lead's tree — the worktree is removed when the child left it empty and
+# retained, named in the Host log, when it did not.
 #
 # `toolFilter` uses `deny`, never `allow`. An allow list must name every tool
 # it keeps, and `tools.restrict()` rejects unknown names loud — so an allow
@@ -169,15 +177,17 @@
     - id: tool-subagent-list-agents
       name: '@deepseek-ai/dsh-tool-subagent-control/list-agents'
 
-    # The only role permitted to modify the workspace. Continuable and
-    # background-first: the lead keeps working while it runs and receives a
-    # settlement notice, then reads the child's transcript by its id.
+    # The only role permitted to modify files, and the only one with a
+    # workspace of its own. One-shot because the worktree provider registers no
+    # `prepareContinuable`: a continuable child outlives the run whose disposal
+    # retires its worktree, so the provider declines that path rather than
+    # provisioning a directory nothing would remove.
     - id: tool-subagent-engineer
       name: '@deepseek-ai/dsh-tool-subagent'
       config:
-        provider: spawn
+        provider: worktree
         toolName: delegate_engineer
-        backgroundMode: continuable
+        backgroundMode: one-shot
         maxDepth: 1
         agentOptions:
           provider: openai

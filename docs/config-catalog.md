@@ -2439,6 +2439,30 @@ export interface Config {
 
 Source: [`packages/subagent/subagent-spawn-in-process/src/index.ts:25`](../packages/subagent/subagent-spawn-in-process/src/index.ts)
 
+<a id="deepseek-aidsh-subagent-worktree-in-process"></a>
+
+## `@deepseek-ai/dsh-subagent-worktree-in-process`
+
+Requires: `subagents` · `subprocess`
+
+```ts config-catalog
+/** Config: registry name, where worktrees live, and the git termination grace. */
+export interface Config {
+  /** Provider name on `ctx.subagents` (default `worktree`). */
+  providerName: string
+  /**
+   * Absolute directory each child's worktree is created under. Deployments
+   * differ on whether that belongs beside the repository, on another volume,
+   * or under a path their backup excludes, so there is no default.
+   */
+  root: string
+  /** Termination grace in milliseconds for each git invocation. */
+  gitGraceMs: number
+}
+```
+
+Source: [`packages/subagent/subagent-worktree-in-process/src/index.ts:42`](../packages/subagent/subagent-worktree-in-process/src/index.ts)
+
 <a id="deepseek-aidsh-subprocess-e2b"></a>
 
 ## `@deepseek-ai/dsh-subprocess-e2b`

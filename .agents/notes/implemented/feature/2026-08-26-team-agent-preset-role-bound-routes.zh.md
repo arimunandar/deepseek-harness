@@ -42,7 +42,7 @@ Status: implemented
 
 **用 allow 列表取代 deny 列表。** 读起来边界更紧，评审员的只读角色也确实想这么写。但它无法可移植地拼写：shell 工具的名字随平台而变，`read_image` 只在有 `ctx.attachments` 时注册，所以一份正确的 allow 列表要么是带条件的 `!!js`，要么在某些宿主上直接挂载失败。
 
-**按角色做 worktree 隔离。** 这才是并发工作区效应的真正修法，也是这里只有 `delegate_engineer` 可以改文件的原因——单一写者是绕开冲突，而非解决冲突。仓库中目前没有任何东西隔离子 Agent 的工作区；补一个具备该能力的 provider 或 driver 选项是顺理成章的下一步改动，不在本 preset 内。
+**按角色做 worktree 隔离。** 这才是并发工作区效应的真正修法，最初不在本次范围内：单一写者是绕开冲突，而非解决冲突。此后已作为 [`worktree`](2026-08-26-worktree-isolated-subagent-workspaces.zh.md) 发布，且 `delegate_engineer` 现在使用它——于是会写的那个角色不再与 lead 共享文件，代价是它只能是 `one-shot`，并且成果落在一个分支上。
 
 ## 后果
 

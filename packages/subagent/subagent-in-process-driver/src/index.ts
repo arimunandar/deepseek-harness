@@ -68,6 +68,16 @@ function toStopReason(reason: TurnEndReason | undefined): SubagentStopReason {
 export interface InProcessRunOptions {
   /** Completed-turn seed for fork, or undefined for a fresh spawn. */
   readonly seed?: SessionEvent[]
+  /**
+   * Absolute workspace for the child, replacing the parent cwd this driver
+   * would otherwise inherit. The child's session header carries it, so every
+   * capability that reads the session cwd — the sandbox policy's
+   * `workspace-write` boundary, relative-path resolution, shell spawns —
+   * confines to it rather than to the parent's workspace. A provider that
+   * provisions its own workspace owns that directory's whole lifetime,
+   * including teardown after the run it wraps disposes.
+   */
+  readonly cwd?: string
 }
 
 /** Error used when cancellation wins before the child publication boundary. */
@@ -131,7 +141,12 @@ export async function startInProcessRun(
 
   const handle = await parent.ctx.agents.create({
     sessionId: childId,
-    meta: childSessionMeta(parent, childDepth, activationBoundary),
+    // A provisioned workspace shadows the inherited parent cwd for this child
+    // alone; the rest of the lineage metadata is unchanged by it.
+    meta: {
+      ...childSessionMeta(parent, childDepth, activationBoundary),
+      ...options.cwd !== undefined ? { cwd: options.cwd } : {},
+    },
     ...seed !== undefined ? { seed } : {},
     agentOptions: resolveChildAgentOptions(parent, request.agentOptions, childDepth),
     signal: request.signal,

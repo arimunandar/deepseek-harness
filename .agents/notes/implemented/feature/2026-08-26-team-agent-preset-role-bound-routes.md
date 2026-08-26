@@ -42,7 +42,7 @@ That failure is loud in the child and quiet in the parent. The child's log carri
 
 **Allow lists instead of deny lists.** Reads as a tighter boundary and is how a reviewer's read-only role wants to be written. It cannot be spelled portably: the shell tool's name differs by platform and `read_image` registers only with `ctx.attachments`, so a correct allow list is either platform-conditional `!!js` or a mount failure on some host.
 
-**Worktree isolation per role.** The real fix for concurrent workspace effects, and the reason only `delegate_engineer` may mutate files here — a single writer sidesteps the conflict rather than solving it. Nothing in the repo isolates a child's workspace today; adding a provider or driver option that does is the natural next change and is not in this preset.
+**Worktree isolation per role.** The real fix for concurrent workspace effects, and originally out of scope here: a single writer sidestepped the conflict rather than solving it. Since shipped as [`worktree`](2026-08-26-worktree-isolated-subagent-workspaces.md), and `delegate_engineer` now uses it — so the writing role no longer shares the lead's files, at the cost of being `one-shot` and landing its work on a branch.
 
 ## Consequences
 

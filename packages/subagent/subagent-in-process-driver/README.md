@@ -2,7 +2,7 @@
 
 English | [中文](README.zh.md)
 
-This package is the shared run driver for the two in-process providers. Spawn passes no session seed; fork passes the parent's completed-turn prefix. Everything else—depth, child creation, optional child customization, result reading, cancellation, and disposal—has one implementation here.
+This package is the shared run driver for the in-process providers. Spawn passes no session seed; fork passes the parent's completed-turn prefix; worktree passes a provisioned workspace. Everything else—depth, child creation, optional child customization, result reading, cancellation, and disposal—has one implementation here.
 
 ## Start contract
 
@@ -28,9 +28,13 @@ The required request signal covers both startup and the live run. Before publica
 
 After fulfillment, the caller owns the run. Provider-plugin unload does not revoke it. `dispose()` removes the live abort listener, records cancellation, and delegates to the returned `AgentHandle.dispose()`, whose memoized quiescence transaction stops the loop, removes the agent and session, and unwinds scoped registrations. Cancellation owns every non-completed in-flight outcome and reports `aborted`; an already-completed turn remains completed.
 
-## Spawn and fork inputs
+## Provider inputs
 
-`InProcessRunOptions` is `{ seed?: SessionEvent[] }`. Spawn omits it. Fork supplies a balanced completed-turn prefix and records its length so the result reader never mistakes a seeded parent message for child output.
+`InProcessRunOptions` is `{ seed?: SessionEvent[], cwd?: string }`, and each in-process provider supplies at most one of them.
+
+`seed` is fork's balanced completed-turn prefix; the driver records its length so the result reader never mistakes a seeded parent message for child output. Spawn omits it.
+
+`cwd` replaces the parent cwd the child would otherwise inherit through `childSessionMeta`, shadowing it in the child's session header for that child alone. Every capability that reads the session cwd follows — the sandbox policy's `workspace-write` boundary, relative-path resolution, shell spawns — so a provider supplies this to isolate a child's workspace rather than to hint at one. The provider that supplies it owns that directory's whole lifetime, including teardown after the run it wraps disposes; the driver creates and removes nothing.
 
 Depth enforcement is internal to `startInProcessRun`: it reads the parent depth via `delegationDepthOf` (the persisted `SessionHeader.delegationDepth` is authoritative; runtime `AgentOptions.subagentDepth` may deepen but never lower it, so a resumed child keeps its budget), treats absence as top-level depth zero, rejects malformed stored values, and reports an attempted child depth above `maxDepth`. An unrepresentable depth above the safe-integer domain is a `RangeError`. The child depth is written to the child header, so it survives persistence and resume.
 
