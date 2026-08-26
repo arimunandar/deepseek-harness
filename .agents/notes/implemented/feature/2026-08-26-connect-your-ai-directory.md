@@ -51,6 +51,8 @@ A stored credential no route reads is not a connection anyone can use, and askin
 
 A provider library owns its `Error.message`, and pi-ai's OAuth exchange packs a `stack=` chain of absolute filesystem paths into it. Rendered verbatim, that is a log dump on the one page built to keep such things off screen — which is exactly what the first browser run showed. `connect()` therefore keeps the first line up to the first `stack=`/`details=` marker, bounded at 200 characters, and states a plain sentence when nothing readable is left. It is a readability bound, not redaction: a provider that puts a secret in its first clause would still surface it, and no consumer-side rule can prevent that.
 
+The route it creates carries the connection's own name, and an existing route missing one gets it on the next attempt. A route key is the adapter's vocabulary, and it is what a configuration surface shows when a profile names nothing else — so a person who connected "Claude" would otherwise meet "anthropic" on the Models page and have no way to know they are the same thing. A route already carrying a name keeps it: a name in the document was chosen by somebody, and this is the one field where the product label and a deliberate override collide.
+
 ### Detection reads `PATH`, never another product's credentials
 
 `vendorCliInstalled` answers whether `claude` or `codex` is on `PATH`, and it exists for one sentence of copy — "you already use this". Nothing opens, parses, or copies a credential out of those tools' storage. The probe never executes the command either, so a vendor tool that is present but broken, or that prompts on launch, cannot affect a configuration page.

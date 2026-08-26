@@ -120,6 +120,11 @@
             defaultModel: claude-sonnet-5
             settingsNs: llm-pi-ai
             routePath: [providers, anthropic]
+            profile:
+              # The route key is pi-ai's vocabulary; this is the name a
+              # person connected. Without it the Models page shows
+              # `anthropic` for the connection they know as Claude.
+              displayName: Claude
             vendorCli: claude
           codex:
             label: Codex
@@ -132,6 +137,11 @@
             defaultModel: gpt-5.6-terra
             settingsNs: llm-pi-ai
             routePath: [providers, openai-codex]
+            profile:
+              # The route key is pi-ai's vocabulary; this is the name a
+              # person connected. Without it the Models page shows
+              # `openai-codex` for the connection they know as Codex.
+              displayName: Codex
             vendorCli: codex
           deepseek:
             label: DeepSeek

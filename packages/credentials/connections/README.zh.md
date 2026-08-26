@@ -58,6 +58,8 @@ await ctx.connections.disconnect('claude')         // forgets what is stored; ne
 
 一份没有任何路由读取的已存凭据，不是任何人能用的连接；为此让人再按一个按钮，等于在问他们管道的事。所以 `connect()` 在尝试获得授权后紧接着写入路由，路由已存在时跳过——重新登录绝不覆盖别人调好的 profile。没有设置提供方的部署在 `cordis.yml` 里组合自己的路由，本包在那里无从写起，路由就是那份文档所说的样子。
 
+它创建的路由带上这个连接自己的名字。路由键是适配器的词汇——`anthropic`、`openai-codex`——而当 profile 没有另行命名时，配置界面显示的就是它；否则以"Claude"完成连接的人，在模型页上还得认出它其实是"anthropic"。缺少该名字的既有路由会在下一次 `connect()` 或 `finishSetup()` 时补上；已经带名字的路由则保持不变，因为文档里的名字是某个人选的，而产品标签输给刻意的覆盖。
+
 ## Model Experience
 
 Indirectly, through the backend a person connects here, which owns every model-visible surface once it is selected.
