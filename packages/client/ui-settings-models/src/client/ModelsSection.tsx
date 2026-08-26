@@ -18,7 +18,7 @@ import type { IApiClient } from '@deepseek-ai/dsh-api-remotes/client'
 import { Button, IconPlusOutline16, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace } from '@deepseek-ai/dsh-client-ui-slots'
 import { CustomProviderCard } from './CustomProviderCard.tsx'
-import { deriveKeyRef, messageOf, protocolChoices, providerUsable } from './store.ts'
+import { DEFAULT_MODEL_NS, deriveKeyRef, messageOf, protocolChoices, providerUsable } from './store.ts'
 import type { ModelsSettingsStore, ProviderRow } from './store.ts'
 import type { SettingsSchemaOperations } from './schema-operations.ts'
 import { ProviderEditor, type ProviderEditorProps } from './ProviderEditor.tsx'
@@ -117,6 +117,39 @@ export async function removeProviderProfile(
   } catch (error) {
     // The transport rejected rather than answering; the caller must be able
     // to retry the idempotent operation instead of the row silently staying.
+    return messageOf(error)
+  }
+  await controller.load()
+  return undefined
+}
+
+/**
+ * Record or forget the model one route starts from.
+ *
+ * A path write into `agent-default-model`, so it cannot disturb the current
+ * selection or another route's entry. An empty model clears the entry, which is
+ * how a person says "ask me each time" rather than storing a blank.
+ * @param api - the settings wire face.
+ * @param controller - the page store, reloaded after the write lands.
+ * @param provider - registered provider route.
+ * @param model - the model id to record, or the empty string to forget it.
+ * @returns the failure message, or undefined once the write and reload landed.
+ */
+export async function saveProviderDefaultModel(
+  api: Pick<IApiClient, 'settings'>,
+  controller: ModelsSettingsStore,
+  provider: string,
+  model: string,
+): Promise<string | undefined> {
+  try {
+    const response = await api.settings.mutate({
+      ns: DEFAULT_MODEL_NS,
+      ops: [model.length === 0
+        ? { op: 'unset', path: ['perProvider', provider] }
+        : { op: 'set', path: ['perProvider', provider], value: model }],
+    })
+    if (!response.result.ok) return response.result.error.message
+  } catch (error) {
     return messageOf(error)
   }
   await controller.load()
@@ -332,6 +365,12 @@ function Loaded({ injected }: { injected: ModelsSectionFace }): ReactNode {
                   {row.entry.declared === true
                     ? <span className={styles['rowTag']}>{t('customTag')}</span>
                     : null}
+                  {/* Two routes can serve one vendor through different
+                      adapters — the native DeepSeek route and a pi-ai catalog
+                      route both read DEEPSEEK_API_KEY — and their names differ
+                      only by case. The owning adapter is the fact that tells
+                      them apart, so the row states it. */}
+                  <span className={styles['rowTag']}>{row.entry.settingsNs}</span>
                   {credentialConfigured
                     ? (
                       <span
@@ -386,6 +425,29 @@ function Loaded({ injected }: { injected: ModelsSectionFace }): ReactNode {
                       </button>
                     )
                     : null}
+                </span>
+              </div>
+              <div className={styles['rowMeta']}>
+                <label className={styles['rowMetaField']}>
+                  <span className={styles['rowMetaLabel']}>{t('defaultModelLabel')}</span>
+                  <select
+                    className={`${styles['input']} ${styles['selectInput']} ${styles['rowMetaSelect']}`}
+                    value={row.defaultModel ?? ''}
+                    title={t('defaultModelHint')}
+                    disabled={!state.writable || row.models.length === 0}
+                    onChange={(event) => {
+                      void saveProviderDefaultModel(api, controller, row.entry.provider, event.target.value)
+                    }}
+                  >
+                    <option value="">{t('defaultModelNone')}</option>
+                    {/* A catalog lists its models in its own order, so nothing
+                        here reorders them into a guess at which is newest. */}
+                    {row.models.map(model => <option key={model} value={model}>{model}</option>)}
+                  </select>
+                </label>
+                <span className={styles['rowMetaField']}>
+                  <span className={styles['rowMetaLabel']}>{t('baseUrlLabel')}</span>
+                  <span className={styles['rowMetaValue']}>{row.baseURL ?? t('baseUrlAdapter')}</span>
                 </span>
               </div>
               {open

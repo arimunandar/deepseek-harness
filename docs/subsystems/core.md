@@ -336,6 +336,31 @@ currentSelection(): ModelSelection
  * @returns fulfillment after the optional settings write settles.
  */
 async saveSelection(next: ModelSelection): Promise<void>
+
+/**
+ * The model one provider route starts from when it becomes the selection.
+ * @param provider - registered provider route.
+ * @returns the stored model id, or undefined when this route has no default.
+ */
+modelFor(provider: string): string | undefined
+
+/**
+ * Record the model one provider route starts from.
+ *
+ * A path write rather than a section write, so setting one route's default
+ * cannot disturb the current selection or another route's entry.
+ * @param provider - registered provider route.
+ * @param model - provider-owned model id.
+ * @returns fulfillment after the optional settings write settles.
+ */
+async saveProviderDefault(provider: string, model: string): Promise<void>
+
+/**
+ * Forget one provider route's default, leaving the choice to whoever switches.
+ * @param provider - registered provider route.
+ * @returns fulfillment after the optional settings write settles.
+ */
+async clearProviderDefault(provider: string): Promise<void>
 ```
 
 Source: [`packages/core/agent-default-model/src/index.ts`](../../packages/core/agent-default-model/src/index.ts)

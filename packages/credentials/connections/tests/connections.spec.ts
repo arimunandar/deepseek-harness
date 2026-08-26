@@ -459,6 +459,13 @@ describe('repairs', () => {
     expect(defaultModel.selection).toEqual({ provider: 'anthropic', model: 'claude-sonnet-5' })
   })
 
+  it('starts from the route default a person set, over the one configuration ships', async () => {
+    const { ctx, defaultModel } = await harness()
+    defaultModel.perProvider.set('anthropic', 'claude-opus-5')
+    await ctx.connections.activate('claude')
+    expect(defaultModel.selection).toEqual({ provider: 'anthropic', model: 'claude-opus-5' })
+  })
+
   it('forgets a stored sign-in without telling the issuer', async () => {
     const { ctx, credentials } = await harness()
     credentials.records.set(CLAUDE_KEY, { kind: 'grant', payload: {} })

@@ -481,7 +481,10 @@ export class ConnectionsService extends TypertRemoteService {
   @Remote('activate')
   async activate(id: string): Promise<void> {
     const { config } = this.entry(id)
-    await this.ctx.agentDefaultModel.saveSelection({ provider: config.provider, model: config.defaultModel })
+    // A default this person set for the route outranks the one configuration
+    // shipped: the shipped value is a starting point, not a preference.
+    const model = this.ctx.agentDefaultModel.modelFor(config.provider) ?? config.defaultModel
+    await this.ctx.agentDefaultModel.saveSelection({ provider: config.provider, model })
     this.ctx.emit('connections/changed')
   }
 

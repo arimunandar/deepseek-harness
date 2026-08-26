@@ -25,10 +25,17 @@
   - status: 已保存 minimax-cn。
   - list:
     - listitem:
-      - text: minimax-cn
+      - text: minimax-cn llm-pi-ai
       - img "API 密钥已配置"
       - button "编辑 minimax-cn": 编辑
       - button "删除 minimax-cn": 删除
+      - text: 默认模型
+      - combobox "默认模型":
+        - option "未设置" [selected]
+        - option "MiniMax-M2.7"
+        - option "MiniMax-M2.7-highspeed"
+        - option "MiniMax-M3"
+      - text: 接口地址 https://gateway.minimax.example/v1
   - button "添加提供方":
     - img
     - text: 添加提供方

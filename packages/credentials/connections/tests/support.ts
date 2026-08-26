@@ -112,12 +112,24 @@ export class MemoryDefaultModel extends Service {
     super(ctx, 'agentDefaultModel')
   }
 
+  /** Per-route defaults, keyed by route. */
+  readonly perProvider = new Map<string, string>()
+
   /**
    * Read the current selection.
    * @returns provider and model.
    */
   currentSelection(): { provider: string; model: string } {
     return this.selection
+  }
+
+  /**
+   * The model one route starts from.
+   * @param provider - registered provider route.
+   * @returns the stored model id, or undefined.
+   */
+  modelFor(provider: string): string | undefined {
+    return this.perProvider.get(provider)
   }
 
   /**

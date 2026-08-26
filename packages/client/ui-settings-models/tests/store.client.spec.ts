@@ -45,12 +45,13 @@ function api(overrides: {
   providers?: () => Promise<RpcResponse<{ providers: typeof DIRECTORY }>>
   describeSettings?: () => Promise<RpcResponse<{ writable: boolean; namespaces: typeof NAMESPACES }>>
   describeCredentials?: (refs: string[]) => Promise<RpcResponse<{ credentials: Record<string, unknown> }>>
+  models?: () => Promise<RpcResponse<{ groups: unknown[] }>>
 } = {}) {
   const seenRefs: string[][] = []
   const face = {
     llm: {
       providers: overrides.providers ?? (() => Promise.resolve(ok({ providers: DIRECTORY }))),
-      models: () => Promise.resolve(ok({ groups: [], failures: [] })),
+      models: overrides.models ?? (() => Promise.resolve(ok({ groups: [], failures: [] }))),
     },
     settings: {
       describe: overrides.describeSettings ?? (() => Promise.resolve(ok({ writable: true, hasDocument: false, namespaces: NAMESPACES }))),
@@ -295,5 +296,68 @@ describe('messageOf', () => {
     expect(messageOf(new Error('connection lost'))).toBe('connection lost')
     expect(messageOf('the host refused')).toBe('the host refused')
     expect(messageOf(undefined)).toBe('undefined')
+  })
+})
+
+describe('per-route default models', () => {
+  /** Load a store whose `agent-default-model` section is whatever the wire says. */
+  const loadWith = async (section: unknown) => {
+    const { face, mirror } = api({
+      describeSettings: () => Promise.resolve(ok({
+        writable: true,
+        hasDocument: false,
+        namespaces: [...NAMESPACES, {
+          ns: 'agent-default-model',
+          schema: {},
+          value: section,
+          applies: 'live' as const,
+          secrets: [],
+          revision: 0,
+        }] as unknown as typeof NAMESPACES,
+      })),
+    })
+    const controller = new ModelsSettingsStore(face, settingsSchema, mirror)
+    await controller.load()
+    return controller.store.getSnapshot().rows
+  }
+
+  it('reads the model a route starts from', async () => {
+    const rows = await loadWith({ perProvider: { openai: 'gpt-5.6-terra' } })
+    expect(rows.find(row => row.entry.provider === 'openai')?.defaultModel).toBe('gpt-5.6-terra')
+  })
+
+  it('answers nothing when the section carries no map', async () => {
+    const rows = await loadWith({ provider: 'deepseek-official', model: 'deepseek-v4-flash' })
+    expect(rows.every(row => row.defaultModel === undefined)).toBe(true)
+  })
+
+  it('answers nothing for a section this build cannot read', async () => {
+    // The section arrives as `unknown` off the wire, so a document written by
+    // hand can be any shape at all.
+    expect((await loadWith('not-a-section')).every(row => row.defaultModel === undefined)).toBe(true)
+    expect((await loadWith({ perProvider: 'not-a-map' })).every(row => row.defaultModel === undefined)).toBe(true)
+    expect((await loadWith({ perProvider: { openai: 42 } })).every(row => row.defaultModel === undefined)).toBe(true)
+    expect((await loadWith({ perProvider: { openai: '' } })).every(row => row.defaultModel === undefined)).toBe(true)
+  })
+
+  it('answers nothing when the namespace is not served at all', async () => {
+    const { face, mirror } = api({})
+    const controller = new ModelsSettingsStore(face, settingsSchema, mirror)
+    await controller.load()
+    expect(controller.store.getSnapshot().rows.every(row => row.defaultModel === undefined)).toBe(true)
+  })
+})
+
+describe('catalog enrichment', () => {
+  it('keeps every row when the catalog read is refused', async () => {
+    const { face, mirror } = api({ models: () => Promise.resolve(fail('catalog unavailable')) })
+    const controller = new ModelsSettingsStore(face, settingsSchema, mirror)
+    await controller.load()
+    const snapshot = controller.store.getSnapshot()
+    // A refused catalog is an enrichment failure: the page still lists every
+    // provider, and each row offers an inert picker rather than none.
+    expect(snapshot.status).toBe('ready')
+    expect(snapshot.rows.length).toBeGreaterThan(0)
+    expect(snapshot.rows.every(row => row.models.length === 0)).toBe(true)
   })
 })

@@ -1,92 +1,128 @@
+/* One connectable backend, in the same surface language as a Models row: the
+   two pages are one product, and a person moving between them should not feel
+   a change of material. */
 .card {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-  padding: 16px;
-  border: 1px solid var(--dsw-alias-border-secondary);
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px solid var(--dsw-alias-border-l2);
   border-radius: 12px;
-  background: var(--dsw-alias-bg-secondary);
 }
 
 .head {
   display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
+  align-items: center;
+  gap: 10px;
+}
+
+/* A monogram rather than a vendor logo: it needs no asset per backend, stays
+   legible at one size in both themes, and cannot go stale when a vendor
+   rebrands. */
+.mark {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--dsw-alias-border-l3);
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+  color: var(--dsw-alias-label-secondary);
 }
 
 .identity {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
   min-width: 0;
+  flex: 1 1 auto;
 }
 
 .name {
   margin: 0;
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--dsw-alias-text-primary);
+  font-size: 14px;
+  line-height: 22px;
+  font-weight: 500;
+  color: var(--dsw-alias-label-primary);
 }
 
 .description {
   margin: 0;
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--dsw-alias-text-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-tertiary);
 }
 
+/* Sits with the name rather than pinned to the far edge: a state that reads as
+   a caption on the row it describes needs no journey across the card. */
 .state {
-  display: flex;
+  flex: none;
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  flex-shrink: 0;
+  gap: 6px;
 }
 
 .stateWord {
-  font-size: 13px;
-  color: var(--dsw-alias-text-secondary);
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-secondary);
 }
 
+/* The one sentence a state owes, indented to the identity column so it reads
+   as belonging to this backend rather than to the card's chrome. */
 .why,
 .hint {
-  margin: 0;
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--dsw-alias-text-secondary);
+  margin: 0 0 0 38px;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-secondary);
 }
 
+.hint {
+  color: var(--dsw-alias-label-tertiary);
+}
+
+/* The running sign-in gets its own surface: while it is open the card is a
+   conversation, and the inset says so without a heading announcing it. */
 .conversation {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
+  margin-left: 38px;
   padding: 12px;
   border-radius: 8px;
-  background: var(--dsw-alias-bg-tertiary);
+  background: var(--dsw-alias-bg-layer-2);
 }
 
 .keepOpen {
   margin: 0;
-  font-size: 12px;
-  color: var(--dsw-alias-text-tertiary);
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--dsw-alias-label-tertiary);
 }
 
 .notice {
   display: flex;
   flex-direction: column;
+  align-items: flex-start;
   gap: 8px;
 }
 
 .noticeMessage {
   margin: 0;
   font-size: 13px;
-  line-height: 1.5;
-  color: var(--dsw-alias-text-primary);
+  line-height: 20px;
+  color: var(--dsw-alias-label-primary);
 }
 
 .noticeLink {
   font-size: 13px;
-  color: var(--dsw-alias-text-link);
+  line-height: 20px;
+  color: var(--dsw-alias-brand-text);
 }
 
 .code {
@@ -96,13 +132,13 @@
 }
 
 .code code {
-  padding: 4px 8px;
+  padding: 4px 10px;
+  border: 1px solid var(--dsw-alias-border-l3);
   border-radius: 6px;
-  font-family: var(--dsw-alias-font-mono);
+  font-family: ui-monospace, SFMono-Regular, SF Mono, Menlo, Consolas, monospace;
   font-size: 13px;
   letter-spacing: 0.08em;
-  background: var(--dsw-alias-bg-primary);
-  color: var(--dsw-alias-text-primary);
+  color: var(--dsw-alias-label-primary);
 }
 
 .prompt {
@@ -114,7 +150,8 @@
 .promptMessage {
   margin: 0;
   font-size: 13px;
-  color: var(--dsw-alias-text-primary);
+  line-height: 20px;
+  color: var(--dsw-alias-label-primary);
 }
 
 .promptRow {
@@ -125,13 +162,25 @@
 .promptField {
   flex: 1 1 auto;
   min-width: 0;
-  height: 36px;
-  padding: 0 12px;
-  border: 1px solid var(--dsw-alias-border-secondary);
+  box-sizing: border-box;
+  height: 32px;
+  padding: 0 10px;
+  border: 1px solid var(--dsw-alias-border-l2);
   border-radius: 8px;
-  background: var(--dsw-alias-bg-primary);
-  color: var(--dsw-alias-text-primary);
-  font-size: 13px;
+  background: transparent;
+  font: inherit;
+  font-size: 14px;
+  line-height: 22px;
+  color: var(--dsw-alias-label-primary);
+}
+
+.promptField::placeholder {
+  color: var(--dsw-alias-label-dimmed);
+}
+
+.promptField:focus-visible {
+  outline: none;
+  border-color: var(--dsw-alias-brand-primary);
 }
 
 .choices {
@@ -141,31 +190,36 @@
 }
 
 .failure {
-  margin: 0;
-  font-size: 13px;
-  line-height: 1.5;
-  color: var(--dsw-alias-text-error);
+  margin: 0 0 0 38px;
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-state-error-primary);
 }
 
+/* Aligned to the identity column so every card's first action starts on one
+   vertical line, which is what makes a stack of them read as a list. */
 .actions {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
+  margin-left: 38px;
 }
 
 .unavailable {
   margin: 0;
-  font-size: 13px;
-  color: var(--dsw-alias-text-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+  color: var(--dsw-alias-label-tertiary);
 }
 
 .history {
-  margin: 0;
-  padding-left: 18px;
+  margin: 0 0 0 38px;
+  padding-left: 16px;
   display: flex;
   flex-direction: column;
   gap: 4px;
-  font-size: 12px;
-  color: var(--dsw-alias-text-tertiary);
+  font-size: 11px;
+  line-height: 16px;
+  color: var(--dsw-alias-label-tertiary);
 }
