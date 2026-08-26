@@ -10,11 +10,17 @@
  * own. It asks the wider question — which of the offered backends, by sign-in
  * or by key — so running both would leave anyone who defers the first looking
  * at a second takeover asking a narrower version of the same thing.
+ *
+ * It is a dialog over the product rather than a full-workspace stage: the app
+ * stays visible and blurred behind the mask, which is what says the question is
+ * one step rather than a new place. Implicit dismissal is ignored — Escape and
+ * a mask click do nothing — because deferring is a decision the step records
+ * through `complete()`, not something to fall out of by accident.
  */
 
 import { useEffect } from 'react'
 import type { ReactNode } from 'react'
-import { Button, OnboardingSurface } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InjectFace, PropsRuntime } from '@deepseek-ai/dsh-client-ui-slots'
 import type { SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
 import { ConnectionCard } from './ConnectionCard.tsx'
@@ -38,6 +44,9 @@ export interface ConnectionsOnboardingInjected {
 /** Slot owner props plus this step's injected dependencies. */
 export type ConnectionsOnboardingProps =
   PropsRuntime<'settings.onboarding'> & InjectFace<ConnectionsOnboardingInjected>
+
+/** Escape and a mask click do nothing: deferring is recorded, never fallen out of. */
+const ignoreImplicitDismiss = (): void => {}
 
 /**
  * Whether this step has anything to ask.
@@ -68,6 +77,18 @@ export function ConnectionsOnboarding(props: ConnectionsOnboardingProps): ReactN
     if (state.status === 'idle') void controller.load()
   }, [controller, state.status])
 
+  // The product behind the mask is visible but not reachable while the step is
+  // deciding or asking; the previous value is restored so a nested surface that
+  // set it keeps its own answer.
+  const showing = state.status === 'ready' && onboardingNeeded(state)
+  useEffect(() => {
+    const appRoot = document.getElementById('root')
+    if (appRoot === null || !showing) return
+    const previous = appRoot.inert
+    appRoot.inert = true
+    return () => { appRoot.inert = previous }
+  }, [showing])
+
   // A connection that lands while the step is open ends it, so the person who
   // just signed in is not left looking at a takeover asking them to sign in.
   useEffect(() => {
@@ -77,8 +98,8 @@ export function ConnectionsOnboarding(props: ConnectionsOnboardingProps): ReactN
   if (state.status !== 'ready' || !onboardingNeeded(state)) return null
 
   return (
-    <OnboardingSurface>
-      <div className={css.step}>
+    <Modal open headless title={t('onboardingHeading')} onClose={ignoreImplicitDismiss} className={css.dialog as string}>
+      <div className={css.content}>
         <h2 className={css.heading}>{t('onboardingHeading')}</h2>
         <p className={css.body}>{t('onboardingBody')}</p>
         <div className={css.cards}>
@@ -97,6 +118,6 @@ export function ConnectionsOnboarding(props: ConnectionsOnboardingProps): ReactN
           <Button onClick={() => { complete() }}>{t('onboardingLater')}</Button>
         </div>
       </div>
-    </OnboardingSurface>
+    </Modal>
   )
 }
