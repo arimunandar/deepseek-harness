@@ -7,6 +7,8 @@ import { SlotRegistry } from '@deepseek-ai/dsh-client-runtime/client'
 import { resolveSlotLabel } from '@deepseek-ai/dsh-client-ui-slots'
 import { usePinnedBrowserLanguages } from '@deepseek-ai/dsh-client-test-runtime'
 import { apply, inject, NS } from '../src/client/index.ts'
+import { ConnectionsOnboarding } from '../src/client/ConnectionsOnboarding.tsx'
+import type { ConnectionsOnboardingInjected } from '../src/client/ConnectionsOnboarding.tsx'
 import { ConnectionsSection } from '../src/client/ConnectionsSection.tsx'
 import type { ConnectionsSectionInjected } from '../src/client/ConnectionsSection.tsx'
 
@@ -44,6 +46,7 @@ function declare(slots: SlotRegistry): () => void {
     name: 'root',
     children: {
       'settings.section': { kind: 'list', scope: 'root' },
+      'settings.onboarding': { kind: 'list', scope: 'root' },
     },
   } as never, () => null)
 }
@@ -53,7 +56,7 @@ describe('ui-settings-connections browser plugin', () => {
     expect(inject).toEqual(['slots', 'locale', 'remote', 'remote.connections'])
   })
 
-  it('registers a localized page ahead of Models, and no first-run step', async () => {
+  it('registers a localized page ahead of Models, and the first-run step', async () => {
     const b = await bench()
     declare(b.slots)
     await b.ctx.plugin({ inject: [...inject], apply }).await()
@@ -65,9 +68,11 @@ describe('ui-settings-connections browser plugin', () => {
     b.locale.setLocale('en')
     expect(resolveSlotLabel(section.options.label)).toBe('Connections')
 
-    // No takeover: the official-DeepSeek credential step already owns first
-    // run, and a second one would make it two takeovers deep.
-    expect(b.slots.entries('settings.onboarding')).toHaveLength(0)
+    // The seat the official-DeepSeek credential step used to hold, after the
+    // welcome notice at -100.
+    const step = b.slots.entries('settings.onboarding')[0]!
+    expect(step.component).toBe(ConnectionsOnboarding)
+    expect(step.options).toMatchObject({ id: 'connections', order: -50 })
 
     await b.ctx.fiber.dispose()
   })
@@ -80,16 +85,17 @@ describe('ui-settings-connections browser plugin', () => {
     await b.ctx.fiber.dispose()
   })
 
-  it('binds one store, so every activation of the page reads the same directory', async () => {
+  it('hands the page and the first-run step one store, so a sign-in is one attempt', async () => {
     const b = await bench()
     declare(b.slots)
     await b.ctx.plugin({ inject: [...inject], apply }).await()
 
     const section = b.slots.entries('settings.section')[0]!
-    const first = (section.inject as unknown as () => ConnectionsSectionInjected)()
-    const second = (section.inject as unknown as () => ConnectionsSectionInjected)()
-    expect(second.controller).toBe(first.controller)
-    expect(second.hooks.snapshot).toBe(first.hooks.snapshot)
+    const step = b.slots.entries('settings.onboarding')[0]!
+    const sectionFace = (section.inject as unknown as () => ConnectionsSectionInjected)()
+    const stepFace = (step.inject as unknown as () => ConnectionsOnboardingInjected)()
+    expect(stepFace.controller).toBe(sectionFace.controller)
+    expect(stepFace.hooks.connections).toBe(sectionFace.hooks.snapshot)
 
     await b.ctx.fiber.dispose()
   })
@@ -119,6 +125,7 @@ describe('ui-settings-connections browser plugin', () => {
     await fiber.dispose()
     expect(b.listeners.size).toBe(0)
     expect(b.slots.entries('settings.section')).toHaveLength(0)
+    expect(b.slots.entries('settings.onboarding')).toHaveLength(0)
     expect(() => b.locale.register(NS, 'zh', {})).not.toThrow()
     await b.ctx.fiber.dispose()
   })

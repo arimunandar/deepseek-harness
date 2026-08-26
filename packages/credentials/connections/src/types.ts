@@ -78,6 +78,16 @@ export interface ConnectionView {
    * read-only source supplies, which this app did not write and cannot remove.
    */
   disconnectable: boolean
+  /**
+   * Whether this backend is reached by typing a key rather than signing in.
+   *
+   * True only where a key would actually take effect: a reference credential
+   * this deployment can write. A backend authenticated by a sign-in answers
+   * false, and so does one whose reference a read-only source already supplies,
+   * because storing a key there would appear to work while resolution kept
+   * returning the shadowing value.
+   */
+  acceptsKey: boolean
 }
 
 /** A running sign-in's report to whoever is watching it. Never carries a secret. */

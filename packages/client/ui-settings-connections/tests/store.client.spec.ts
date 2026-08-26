@@ -13,6 +13,7 @@ const CLAUDE: ConnectionView = {
   active: false,
   vendorCliInstalled: false,
   disconnectable: false,
+  acceptsKey: false,
 }
 
 /** Every Remote call the store makes, each answering ok by default. */
@@ -26,6 +27,7 @@ function remote() {
       finishSetup: vi.fn().mockResolvedValue({ ok: true, value: undefined }),
       activate: vi.fn().mockResolvedValue({ ok: true, value: undefined }),
       disconnect: vi.fn().mockResolvedValue({ ok: true, value: undefined }),
+      saveKey: vi.fn().mockResolvedValue({ ok: true, value: undefined }),
     },
   }
 }
@@ -196,6 +198,26 @@ describe('repairs', () => {
     wire.connections.finishSetup.mockResolvedValueOnce({ ok: false })
     await store.finishSetup('claude')
     expect(store.store.getSnapshot().conversations['claude']?.failure).toBe('unknown')
+  })
+})
+
+describe('typed keys', () => {
+  it('stores the key and re-reads', async () => {
+    const { wire, store } = bench()
+    await store.saveKey('deepseek', 'sk-typed')
+    expect(wire.connections.saveKey).toHaveBeenCalledWith('deepseek', 'sk-typed')
+    expect(wire.connections.list).toHaveBeenCalled()
+  })
+
+  it('keeps a refused key write on the card it came from', async () => {
+    const { wire, store } = bench()
+    wire.connections.saveKey.mockResolvedValueOnce({
+      ok: false,
+      error: { code: 'credential-rejected', message: 'the launch environment supplies this' },
+    })
+    await store.saveKey('deepseek', 'sk-typed')
+    expect(store.store.getSnapshot().conversations['deepseek']?.failure)
+      .toBe('credential-rejected: the launch environment supplies this')
   })
 })
 

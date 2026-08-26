@@ -19,7 +19,8 @@ import { ZH_BROWSER_LOCALE, saveFailureShot } from './support.ts'
 const SNAPSHOT_DIR = fileURLToPath(new URL('./snapshots/onboarding-usable-provider', import.meta.url))
 const DISMISSED_EXPECTED = join(SNAPSHOT_DIR, 'dismissed.expected.md')
 const MODE = webSnapshotMode()
-const CREDENTIAL_STEP = '添加一个 API Key 开始使用'
+/** The connections step's heading; it owns first run. */
+const CREDENTIAL_STEP = '先连接一个 AI'
 
 describe.skipIf(MODE === 'record')('web e2e: another usable provider ends first-run onboarding', () => {
   let scaffold: WebScaffold
@@ -44,10 +45,11 @@ describe.skipIf(MODE === 'record')('web e2e: another usable provider ends first-
 
   it('closes the setup card without discarding the add card beside it', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-onboarding-setup-card-cancel'))
-    const credentialStep = page.getByRole('dialog', { name: CREDENTIAL_STEP })
-    await credentialStep.waitFor({ timeout: 15_000 })
-    await credentialStep.getByRole('button', { name: '稍后配置' }).click()
-    await credentialStep.waitFor({ state: 'detached', timeout: 15_000 })
+    // The connections step owns first run; deferring it is what gets a person
+    // to the Models page the rest of this scenario exercises.
+    await page.getByText(CREDENTIAL_STEP).waitFor({ timeout: 15_000 })
+    await page.getByRole('button', { name: '稍后再说' }).click()
+    await page.getByText(CREDENTIAL_STEP).waitFor({ state: 'detached', timeout: 15_000 })
 
     await page.getByRole('button', { name: '设置', exact: true }).click()
     const settings = page.getByRole('dialog', { name: '设置' })
@@ -85,7 +87,7 @@ describe.skipIf(MODE === 'record')('web e2e: another usable provider ends first-
     expect(tripwire.pageErrors).toEqual([])
   }, 60_000)
 
-  it('stops prompting for DeepSeek once the other provider can serve requests', async () => {
+  it('keeps asking for an offered connection when the only usable provider is not one', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-onboarding-other-provider'))
     const settings = page.getByRole('dialog', { name: '设置' })
     await settings.getByRole('textbox', { name: 'API 密钥', exact: true }).fill('sk-e2e-minimax')
@@ -103,12 +105,14 @@ describe.skipIf(MODE === 'record')('web e2e: another usable provider ends first-
     await page.reload({ waitUntil: 'load' })
     acknowledgeReloadConnectionLoss(tripwire, warningsBefore)
     await page.waitForSelector('[class*="frame"]', { timeout: 15_000 })
-    // The regression: the step read only the official route's credential, so a
-    // fully configured user was taken over on every blank session.
-    await expect.poll(
-      async () => page.getByRole('dialog', { name: CREDENTIAL_STEP }).count(),
-      { timeout: 10_000 },
-    ).toBe(0)
+    // The connections step asks about the backends this deployment offers, and
+    // minimax-cn is not one of them, so it still asks. That is narrower than
+    // the step it replaced, which ended for any reachable provider — the cost
+    // of a directory that only knows its own entries. Deferring is one click
+    // and nothing is blocked behind it.
+    await page.getByText(CREDENTIAL_STEP).waitFor({ timeout: 15_000 })
+    await page.getByRole('button', { name: '稍后再说' }).click()
+    await page.getByText(CREDENTIAL_STEP).waitFor({ state: 'detached', timeout: 15_000 })
     expect(await page.locator('#root').evaluate(root => (root as HTMLElement).inert)).toBe(false)
 
     // The Models page agrees: DeepSeek stays a row rather than reopening its

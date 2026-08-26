@@ -512,6 +512,38 @@ describe('repairs', () => {
     expect(credentials.records.has(CLAUDE_KEY)).toBe(false)
   })
 
+  it('stores a typed key and brings the backend up', async () => {
+    const { ctx, credentials } = await harness()
+    expect(row(await ctx.connections.list(), 'deepseek').acceptsKey).toBe(true)
+
+    await ctx.connections.saveKey('deepseek', '  sk-typed  ')
+
+    // Trimmed on the way in: a key with surrounding whitespace is the same key,
+    // and no HTTP header can carry the padding.
+    expect(credentials.refs.get(DEEPSEEK_REF)).toBe('sk-typed')
+  })
+
+  it('refuses a blank key rather than storing one that reads as absent', async () => {
+    const { ctx, credentials } = await harness()
+    await expect(ctx.connections.saveKey('deepseek', '   ')).rejects.toThrow('blank key')
+    expect(credentials.refs.has(DEEPSEEK_REF)).toBe(false)
+  })
+
+  it('refuses a key for a backend that is reached by signing in', async () => {
+    const { ctx } = await harness()
+    await expect(ctx.connections.saveKey('claude', 'sk-nope'))
+      .rejects.toThrow('reached by signing in, not by a key')
+  })
+
+  it('offers no key field for a sign-in backend, or for one a read-only source supplies', async () => {
+    const { ctx, credentials } = await harness()
+    expect(row(await ctx.connections.list(), 'claude').acceptsKey).toBe(false)
+    credentials.readOnly.add(DEEPSEEK_REF)
+    // Storing here would appear to work while resolution kept returning the
+    // shadowing value, so the field is not offered at all.
+    expect(row(await ctx.connections.list(), 'deepseek').acceptsKey).toBe(false)
+  })
+
   it('forgets a typed key through the reference half', async () => {
     const { ctx, credentials } = await harness()
     credentials.refs.set(DEEPSEEK_REF, 'sk-stored')

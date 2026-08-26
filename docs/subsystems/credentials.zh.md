@@ -195,6 +195,20 @@ orphanedPrompts(): string[]
 @Remote('activate') async activate(id: string): Promise<void>
 
 /**
+ * Store the key one backend is reached by.
+ *
+ * The value crosses this seam in one direction and is never read back: the
+ * credential seam holds it, and every view here is structurally value-free.
+ * A blank is refused rather than stored, because an empty stored value reads
+ * as absent everywhere and would leave the card claiming a key it does not
+ * have.
+ * @param id - connection id.
+ * @param value - the key as the person typed it.
+ * @returns fulfillment after the credential is stored and the change announced.
+ */
+@Remote('saveKey') async saveKey(id: string, value: string): Promise<void>
+
+/**
  * Forget what is stored for one connection.
  *
  * This is a local erasure and never a revocation: the issuer is not told,

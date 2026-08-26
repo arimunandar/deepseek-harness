@@ -1,11 +1,11 @@
 /**
- * Connect-your-AI page, registered into Web Settings.
+ * Connect-your-AI page and the first-run step that offers the same cards.
  *
- * It contributes no `settings.onboarding` step. One takeover already owns that
- * moment — the official-DeepSeek credential step — and a second one asking a
- * wider version of the same question would make first run two takeovers deep
- * for anyone who defers the first. Which step owns first run is a decision
- * about that flow rather than about this page.
+ * One store serves both, so a sign-in started in the takeover is the attempt
+ * the settings page shows. The step owns the moment the official-DeepSeek
+ * credential step used to own: it asks the wider question — which of the
+ * offered backends, by sign-in or by key — and running both would leave anyone
+ * who defers the first looking at a narrower second one.
  */
 
 // Type-only: pulls the settings shell's SlotMap merge (the 'settings.section'
@@ -17,11 +17,15 @@ import type {} from '@deepseek-ai/dsh-client-locale/client'
 // forwarded-event key face this page subscribes to.
 import type {} from '@deepseek-ai/dsh-api-remotes/client'
 import type { ClientContext } from '@deepseek-ai/dsh-client-runtime/client'
+import { ConnectionsOnboarding } from './ConnectionsOnboarding.tsx'
+import type { ConnectionsOnboardingInjected } from './ConnectionsOnboarding.tsx'
 import { ConnectionsSection } from './ConnectionsSection.tsx'
 import type { ConnectionsSectionInjected } from './ConnectionsSection.tsx'
 import { ConnectionsStore } from './store.ts'
 import { en, zh, type ConnectionsLocaleKey } from './locales.ts'
 
+export type { ConnectionsOnboardingInjected, ConnectionsOnboardingProps } from './ConnectionsOnboarding.tsx'
+export { onboardingNeeded } from './ConnectionsOnboarding.tsx'
 export type { ConnectionsSectionInjected, ConnectionsSectionProps } from './ConnectionsSection.tsx'
 export { cardActions, ConnectionsStore, EMPTY_CONNECTIONS_STATE, messageOf } from './store.ts'
 export type { ConnectionCardActions, ConnectionConversation, ConnectionsState } from './store.ts'
@@ -72,6 +76,21 @@ export function apply(ctx: ClientContext): void {
       for (const dispose of disposers) dispose()
     }
   }, 'ui-settings-connections: pushed invalidations')
+
+  const onboardingInjected = (): ConnectionsOnboardingInjected => ({
+    controller,
+    hooks: { connections: controller.store },
+    t,
+  })
+
+  ctx.slots.inject('settings.onboarding', () => ctx.slots.register({
+    name: 'settings.onboarding',
+    id: 'connections',
+    // After the welcome notice (-100), which is a notice rather than a
+    // question, and in the seat the official-DeepSeek key step used to hold.
+    order: -50,
+    inject: onboardingInjected,
+  }, ConnectionsOnboarding))
 
   ctx.slots.inject('settings.section', () => ctx.slots.register({
     name: 'settings.section',

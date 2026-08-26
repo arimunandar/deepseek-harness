@@ -4,11 +4,11 @@ English | [中文](README.zh.md)
 
 The Connect-your-AI page, over the Host [connection directory](../../credentials/connections/README.md). One card per offered backend: a product name, one sentence, a state word, and one obvious button. Every technical fact behind that state word — credential references, record scopes, settings namespaces, provider routes — stays on the Host; what crosses the wire is already the four states and the one repair each implies, so this page renders an account connection rather than a provider profile. Someone who wants the profile is on the Models page, and this section sits ahead of it in the navigation because connecting an account is the question a person arrives with.
 
-## No first-run takeover
+## One store, two surfaces
 
-This package contributes a `settings.section` and nothing else. The `settings.onboarding` slot already has an occupant — the official-DeepSeek credential step — and a second takeover asking a wider version of the same question would leave anyone who defers the first looking at another one. Which step owns first run is a decision about that flow, not about this page.
+The settings section and the `settings.onboarding` step share one store and one set of card actions (`cardActions`). A sign-in started in the first-run takeover is the attempt the settings page shows, neither surface can drift into offering a different repair for the same state, and the step ends the moment any connection lands — so the person who just signed in is never left looking at a takeover asking them to sign in.
 
-The card actions are bound once (`cardActions`), so any future surface rendering the same card offers the same repair for the same state rather than wiring its own.
+The step owns the moment the official-DeepSeek credential step used to own. It asks the wider question — which of the offered backends, by sign-in or by typed key — so running both would leave anyone who defers the first looking at a narrower second one. It asks nothing when the directory has not loaded, failed to load, or offers nothing: first run is a nudge toward a page that exists either way, and blocking it on a failed read would trap someone behind a surface that cannot help them.
 
 ## A sign-in is the card, not a dialog
 
@@ -18,7 +18,7 @@ The card says to keep the page open. That is not decoration: an attempt lives on
 
 ## Every state names its own repair
 
-`not-connected` offers Connect, and adds one sentence when the vendor's own command-line tool is installed — the same account, one click, no file of theirs is read. `setup-required` offers Finish setup. `needs-attention` offers a fresh sign-in, except for a credential the launch environment supplies, which offers nothing because nothing this page can write would change it. `connected` offers Use for new chats until it is the one in use. Disconnect appears only for something this app itself stored, and its confirmation names the connection and says plainly that it forgets a local sign-in rather than signing anyone out.
+`not-connected` offers Connect, and adds one sentence when the vendor's own command-line tool is installed — the same account, one click, no file of theirs is read. A backend reached by a typed key instead shows a masked field: the value is write-only past submit, so the field clears rather than leaving a secret on screen that nothing can read back. `setup-required` offers Finish setup. `needs-attention` offers a fresh sign-in, except for a credential the launch environment supplies, which offers nothing because nothing this page can write would change it. `connected` offers Use for new chats until it is the one in use. Disconnect appears only for something this app itself stored, and its confirmation names the connection and says plainly that it forgets a local sign-in rather than signing anyone out.
 
 `not-connected` carries no status dot. Nothing is wrong with a backend a person simply has not chosen, and a coloured dot there would read as a problem to fix.
 
@@ -39,5 +39,5 @@ None; this package neither assembles nor sends a provider request.
 - **A reload during a sign-in loses it** — the attempt is not durable anywhere, so the card can only warn. Resuming needs a store the authorization seam does not have.
 - **Only the latest notice is shown while an attempt runs** — earlier ones move into the collapsed history once it settles. A flow that says several things at once shows only the last of them at the moment it matters.
 - **Remote browsers get an inert page** — the directory rides the Host Remote, so a non-loopback browser reads nothing and every button is dead. The page renders its read failure rather than a tailored explanation.
-- **First run does not reach this page** — someone with no credential meets the official-DeepSeek step, which asks a narrower question than the cards here. Reaching Claude or Codex means finding Settings. Resolving that means deciding which step owns first run.
+- **The step only knows the backends this deployment offers** — someone whose only usable provider is a route outside `Config.connections` is still asked, because the directory cannot judge a route it does not carry. Deferring is one click and nothing is blocked behind it, but the step it replaced ended for any reachable provider.
 - **The card offers the flow's first method** — a backend whose flow offers several ways in (a subscription sign-in and a typed key) shows only the first. Choosing among them needs a control this page does not draw.

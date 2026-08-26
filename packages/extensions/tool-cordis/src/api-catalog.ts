@@ -682,6 +682,12 @@ export const SERVICE_API: readonly ServiceApiEntry[] = [
         parameters: [{ name: 'id', description: 'connection id.' }],
       },
       {
+        signature: '@Remote(\'saveKey\') async saveKey(id: string, value: string): Promise<void>',
+        description: 'Store the key one backend is reached by.\n\nThe value crosses this seam in one direction and is never read back: the credential seam holds it, and every view here is structurally value-free. A blank is refused rather than stored, because an empty stored value reads as absent everywhere and would leave the card claiming a key it does not have.',
+        parameters: [{ name: 'id', description: 'connection id.' }, { name: 'value', description: 'the key as the person typed it.' }],
+        returns: 'fulfillment after the credential is stored and the change announced.',
+      },
+      {
         signature: '@Remote(\'disconnect\') async disconnect(id: string): Promise<void>',
         description: 'Forget what is stored for one connection.\n\nThis is a local erasure and never a revocation: the issuer is not told, because no seam here has a place to declare one. A credential supplied by a source this deployment cannot write is left untouched — the write would be refused and reporting success would be a lie.',
         parameters: [{ name: 'id', description: 'connection id.' }],
@@ -3232,7 +3238,7 @@ export const TYPE_API: readonly TypeApiEntry[] = [
   },
   {
     name: 'ConnectionView',
-    declaration: 'export interface ConnectionView {\n    id: string;\n    label: string;\n    description: string;\n    status: ConnectionStatus;\n    attention?: ConnectionAttention;\n    methods: readonly ConnectionMethod[];\n    connecting: boolean;\n    active: boolean;\n    vendorCliInstalled: boolean;\n    disconnectable: boolean;\n}',
+    declaration: 'export interface ConnectionView {\n    id: string;\n    label: string;\n    description: string;\n    status: ConnectionStatus;\n    attention?: ConnectionAttention;\n    methods: readonly ConnectionMethod[];\n    connecting: boolean;\n    active: boolean;\n    vendorCliInstalled: boolean;\n    disconnectable: boolean;\n    acceptsKey: boolean;\n}',
   },
   {
     name: 'ContentBlockMap',

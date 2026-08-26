@@ -64,9 +64,13 @@ describe('web e2e: the Connections page says what to press about each backend', 
 
   it('offers Connect, and nothing else, while nothing is stored', async () => {
     onTestFailed(() => saveFailureShot(page, 'web-e2e-connections-empty'))
-    // Settings opens directly: this page contributes no first-run takeover, and
-    // the scaffold pre-acknowledges the welcome notice while leaving the
-    // DeepSeek adapter unmounted, so neither shipped step has anything to ask.
+    // Nothing is connected, so this page's own first-run step owns the screen.
+    // Deferring it is what a person does to get at anything else, and the same
+    // cards are one click away for the rest of the scenario.
+    await page.getByText('先连接一个 AI').waitFor({ timeout: 30_000 })
+    await page.getByRole('button', { name: '稍后再说' }).click()
+    await page.getByText('先连接一个 AI').waitFor({ state: 'detached', timeout: 15_000 })
+
     await page.getByRole('button', { name: '设置', exact: true }).click()
     const dialog = page.getByRole('dialog', { name: '设置' })
     await dialog.waitFor({ timeout: 10_000 })

@@ -32,5 +32,8 @@
   - region "Beta":
     - heading "Beta" [level=3]
     - paragraph: A backend that takes a key.
-    - text: 未连接
+    - text: 未连接 API 密钥
+    - textbox "API 密钥":
+      - /placeholder: 粘贴你的密钥
+    - button "保存" [disabled]
     - paragraph: 这个后端在当前配置下无法连接。

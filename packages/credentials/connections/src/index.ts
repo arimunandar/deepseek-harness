@@ -353,6 +353,7 @@ export class ConnectionsService extends TypertRemoteService {
         active: active.provider === config.provider,
         vendorCliInstalled: config.vendorCli !== undefined && commandOnPath(config.vendorCli),
         disconnectable: stored.configured && stored.writable,
+        acceptsKey: credential.kind === 'reference' && stored.writable,
       })
     }
     return views
@@ -485,6 +486,31 @@ export class ConnectionsService extends TypertRemoteService {
     // shipped: the shipped value is a starting point, not a preference.
     const model = this.ctx.agentDefaultModel.modelFor(config.provider) ?? config.defaultModel
     await this.ctx.agentDefaultModel.saveSelection({ provider: config.provider, model })
+    this.ctx.emit('connections/changed')
+  }
+
+  /**
+   * Store the key one backend is reached by.
+   *
+   * The value crosses this seam in one direction and is never read back: the
+   * credential seam holds it, and every view here is structurally value-free.
+   * A blank is refused rather than stored, because an empty stored value reads
+   * as absent everywhere and would leave the card claiming a key it does not
+   * have.
+   * @param id - connection id.
+   * @param value - the key as the person typed it.
+   * @returns fulfillment after the credential is stored and the change announced.
+   */
+  @Remote('saveKey')
+  async saveKey(id: string, value: string): Promise<void> {
+    const { credential } = this.entry(id)
+    if (credential.kind !== 'reference') {
+      throw new TypeError(`connections: "${id}" is reached by signing in, not by a key`)
+    }
+    const key = value.trim()
+    if (key.length === 0) throw new TypeError(`connections: "${id}" was given a blank key`)
+    await this.ctx.credentials.set(credential.ref, key)
+    await this.ensureRoute(id)
     this.ctx.emit('connections/changed')
   }
 

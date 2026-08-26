@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import type { ConnectionView } from '@deepseek-ai/dsh-api-remotes/client'
 import { ConnectionCard } from '../src/client/ConnectionCard.tsx'
+import { ConnectionsOnboarding, onboardingNeeded } from '../src/client/ConnectionsOnboarding.tsx'
 import { ConnectionsSection } from '../src/client/ConnectionsSection.tsx'
 import { EMPTY_CONNECTIONS_STATE } from '../src/client/store.ts'
 import type { ConnectionsState, ConnectionsStore } from '../src/client/store.ts'
@@ -10,6 +11,16 @@ import { en } from '../src/client/locales.ts'
 import type { ConnectionsLocaleKey } from '../src/client/locales.ts'
 
 afterEach(cleanup)
+
+/**
+ * The owner share the settings shell passes every onboarding step. The two
+ * standard hooks throw: this step renders no session or workspace surface, so
+ * reaching one would be a regression rather than a missing double.
+ */
+function ownerProps() {
+  const unusedHook = (() => { throw new Error('unused standard hook') }) as never
+  return { stepId: 'connections', openSection: vi.fn(), useSessions: unusedHook, useWorkspaces: unusedHook }
+}
 
 const t = (key: ConnectionsLocaleKey): string => en[key]
 
@@ -25,6 +36,7 @@ function view(overrides: Partial<ConnectionView> = {}): ConnectionView {
     active: false,
     vendorCliInstalled: false,
     disconnectable: false,
+    acceptsKey: false,
     ...overrides,
   }
 }
@@ -39,6 +51,7 @@ function actions() {
     onActivate: vi.fn(),
     onDisconnect: vi.fn(),
     onExpand: vi.fn(),
+    onSaveKey: vi.fn(),
   }
 }
 
@@ -307,6 +320,7 @@ function controllerFor(state: ConnectionsState) {
     disconnect: vi.fn().mockResolvedValue(undefined),
     expand: vi.fn(),
     confirm: vi.fn(),
+    saveKey: vi.fn().mockResolvedValue(undefined),
   }
   return {
     calls,
@@ -314,6 +328,131 @@ function controllerFor(state: ConnectionsState) {
     useSnapshot: ((select: (snapshot: ConnectionsState) => unknown) => select(state)) as never,
   }
 }
+
+describe('a backend reached by a key', () => {
+  it('takes the key, trims nothing on screen, and clears the field on submit', () => {
+    const handlers = actions()
+    render(<ConnectionCard
+      row={view({ acceptsKey: true, methods: [], attention: 'credential-missing', status: 'needs-attention' })}
+      conversation={undefined} expanded={false} t={t} {...handlers} />)
+
+    const field = screen.getByLabelText(en.keyLabel) as HTMLInputElement
+    // Masked, and out of autofill: a key is a secret even while being typed.
+    expect(field.type).toBe('password')
+    expect(screen.getByRole('button', { name: en.keySave })).toHaveProperty('disabled', true)
+
+    fireEvent.change(field, { target: { value: 'sk-typed' } })
+    fireEvent.click(screen.getByRole('button', { name: en.keySave }))
+    expect(handlers.onSaveKey).toHaveBeenCalledWith('sk-typed')
+    // Write-only past this point, so leaving it on screen would show a secret
+    // nothing can read back.
+    expect(field.value).toBe('')
+  })
+
+  it('refuses a blank key without reaching the store', () => {
+    const handlers = actions()
+    const { container } = render(<ConnectionCard
+      row={view({ acceptsKey: true, methods: [] })}
+      conversation={undefined} expanded={false} t={t} {...handlers} />)
+    const field = screen.getByLabelText(en.keyLabel)
+    fireEvent.change(field, { target: { value: '   ' } })
+    fireEvent.submit(container.querySelector('form')!)
+    expect(handlers.onSaveKey).not.toHaveBeenCalled()
+  })
+
+  it('offers no key field once the backend is connected, or while a sign-in runs', () => {
+    const handlers = actions()
+    const { rerender } = render(<ConnectionCard
+      row={view({ acceptsKey: true, methods: [], status: 'connected' })}
+      conversation={undefined} expanded={false} t={t} {...handlers} />)
+    expect(screen.queryByLabelText(en.keyLabel)).toBeNull()
+
+    rerender(<ConnectionCard
+      row={view({ acceptsKey: true, connecting: true })}
+      conversation={{ running: true, notices: [], prompt: null, failure: null }}
+      expanded={false} t={t} {...handlers} />)
+    expect(screen.queryByLabelText(en.keyLabel)).toBeNull()
+  })
+
+  it('draws a monogram from the first grapheme, not the first code unit', () => {
+    const handlers = actions()
+    // A label can begin with an emoji or a combining pair; one code unit would
+    // render half of it, and an empty label must render nothing at all.
+    const { rerender } = render(<ConnectionCard
+      row={view({ label: '👋 Wave' })} conversation={undefined} expanded={false} t={t} {...handlers} />)
+    expect(screen.getByRole('region', { name: '👋 Wave' }).textContent).toContain('👋')
+    rerender(<ConnectionCard
+      row={view({ label: '' })} conversation={undefined} expanded={false} t={t} {...handlers} />)
+    expect(screen.getByRole('heading', { level: 3 }).textContent).toBe('')
+  })
+
+  it('offers no key field for a backend reached by signing in', () => {
+    const handlers = actions()
+    render(<ConnectionCard row={view({ acceptsKey: false })} conversation={undefined} expanded={false} t={t} {...handlers} />)
+    expect(screen.queryByLabelText(en.keyLabel)).toBeNull()
+  })
+})
+
+describe('the first-run step', () => {
+  it('asks nothing before the directory is read, when it fails, or when it is empty', () => {
+    expect(onboardingNeeded(EMPTY_CONNECTIONS_STATE)).toBe(false)
+    expect(onboardingNeeded({ ...EMPTY_CONNECTIONS_STATE, status: 'error' })).toBe(false)
+    expect(onboardingNeeded({ ...EMPTY_CONNECTIONS_STATE, status: 'ready' })).toBe(false)
+  })
+
+  it('asks while nothing is connected and stops the moment something is', () => {
+    expect(onboardingNeeded({ ...EMPTY_CONNECTIONS_STATE, status: 'ready', rows: [view()] })).toBe(true)
+    expect(onboardingNeeded({
+      ...EMPTY_CONNECTIONS_STATE,
+      status: 'ready',
+      rows: [view({ status: 'connected' })],
+    })).toBe(false)
+  })
+
+  it('offers the same cards the settings page does, and a way to defer', () => {
+    const bench = controllerFor({ ...EMPTY_CONNECTIONS_STATE, status: 'ready', rows: [view()] })
+    const complete = vi.fn()
+    render(<ConnectionsOnboarding
+      {...ownerProps()} complete={complete} controller={bench.controller} useConnections={bench.useSnapshot} t={t} />)
+    expect(screen.getByText(en.onboardingHeading)).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: 'Connect' }))
+    expect(bench.calls.connect).toHaveBeenCalledWith('claude', 'oauth')
+    fireEvent.click(screen.getByRole('button', { name: en.onboardingLater }))
+    expect(complete).toHaveBeenCalled()
+  })
+
+  it('takes a key without leaving the takeover', () => {
+    const bench = controllerFor({
+      ...EMPTY_CONNECTIONS_STATE,
+      status: 'ready',
+      rows: [view({ id: 'deepseek', label: 'DeepSeek', acceptsKey: true, methods: [] })],
+    })
+    render(<ConnectionsOnboarding
+      {...ownerProps()} complete={vi.fn()} controller={bench.controller} useConnections={bench.useSnapshot} t={t} />)
+    fireEvent.change(screen.getByLabelText(en.keyLabel), { target: { value: 'sk-typed' } })
+    fireEvent.click(screen.getByRole('button', { name: en.keySave }))
+    // The step covers both ways in, which is what lets it be the only takeover.
+    expect(bench.calls.saveKey).toHaveBeenCalledWith('deepseek', 'sk-typed')
+  })
+
+  it('loads the directory and ends itself once a connection lands', () => {
+    const idle = controllerFor(EMPTY_CONNECTIONS_STATE)
+    const complete = vi.fn()
+    const { rerender, container } = render(<ConnectionsOnboarding
+      {...ownerProps()} complete={complete} controller={idle.controller} useConnections={idle.useSnapshot} t={t} />)
+    expect(idle.calls.load).toHaveBeenCalledOnce()
+    expect(container.firstChild).toBeNull()
+
+    const connected = controllerFor({
+      ...EMPTY_CONNECTIONS_STATE,
+      status: 'ready',
+      rows: [view({ status: 'connected' })],
+    })
+    rerender(<ConnectionsOnboarding
+      {...ownerProps()} complete={complete} controller={connected.controller} useConnections={connected.useSnapshot} t={t} />)
+    expect(complete).toHaveBeenCalled()
+  })
+})
 
 describe('the page', () => {
   it('renders nothing until the slot delivers its dependencies', () => {
