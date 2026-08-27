@@ -55,4 +55,8 @@ Status: implemented
 
 `packages/llm/llm-pi-ai/tests/convert.spec.ts` 逐字钉住来自实机运行的两种措辞，外加促成这一放置位置的两条顺序守卫——点名 `gpt-500-codex` 的准入消息仍为 `MODEL_NOT_ENTITLED` 而非 `SERVER`，同一条消息加上 `403:` 前缀后仍为 `MODEL_NOT_ENTITLED` 而非 `AUTH`——以及两条负例（`tool configuration is not valid`、`no access to /etc/hosts`），用以在更宽的正则面前守住兜底。`adapter.spec.ts` 驱动真实插件访问其本地 mock server，由后者回答一个真正的 403 准入响应体，这才说明措辞挺过了 pi-ai 的压平，而不只是分类器对某个字符串判断正确。`packages/subagent/tool-subagent/tests/tool-subagent.spec.ts` 钉住新 code 配合空输出在默认集合下符合回退条件。
 
+`examples/headless-agent/tests/headless.snapshot.ts` 以无密钥方式、通过组装后的应用钉住凭据这一半：`pi-ai-keyless.cordis.snapshot.yml` 禁用 DeepSeek 适配器，挂载一条不指定 `apiKeyEnv` 的 pi-ai 路由，并把 agent 重新指向它，因此在端点被拨通之前，pi-ai 自己的鉴权解析就会拒绝该路由。录制下来的 transcript 携带 `MISSING_CREDENTIAL`；同一组合在改动前的分类器上运行会得到 `PI_AI_ERROR`，正是这一点让该录制成为测试而非描述。
+
+`pi-ai-entitlement.cordis.yml` 以同样方式钉住另一半。该套件本就会启动本地 HTTP 服务器并把某个组合的 `baseURL` 指向它，因此准入拒绝无需任何新的 harness 支持：服务器以 403 返回该措辞，路由携带有效凭据，transcript 记录下 `MODEL_NOT_ENTITLED`。有两个事实只有组装后的运行才能确立：pi-ai 会在压平后的消息前加上字面的状态码前缀（`403: {…}`），因此上文的顺序决定是承重的而非防御性的；以及同一场景在改动前的分类器上记录为 `AUTH`——正是那个会把操作者引去轮换一把好用密钥的结果。该拒绝恰好只消耗一次请求，这由记录下来的服务器请求计数钉住，因为该 code 不在可重试集合内。
+
 单元测试断言的是这套映射本身，而不是映射与现实相符；两种措辞都来自针对真实 OpenAI 与 Anthropic 账户的实机运行。

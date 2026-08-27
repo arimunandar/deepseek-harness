@@ -44,6 +44,10 @@ const credentialsConfigPath = fileURLToPath(new URL('../credentials.cordis.snaps
 // never dialed either way, because a supplied-but-unusable key fails credential
 // resolution exactly where an absent one does.
 const invalidCredentialScenarioDir = join(snapshotsDir, 'invalid-credential')
+const piAiKeylessScenarioDir = join(snapshotsDir, 'pi-ai-missing-credential')
+const piAiKeylessConfigPath = fileURLToPath(new URL('../pi-ai-keyless.cordis.snapshot.yml', import.meta.url))
+const piAiEntitlementScenarioDir = join(snapshotsDir, 'pi-ai-model-not-entitled')
+const piAiEntitlementConfigPath = fileURLToPath(new URL('./fixtures/pi-ai-entitlement.cordis.yml', import.meta.url))
 const ralphScenarioDir = join(snapshotsDir, 'ralph-loop')
 const ralphConfigPath = fileURLToPath(new URL('../ralph.cordis.snapshot.yml', import.meta.url))
 const settlementScenarioDir = join(snapshotsDir, 'subagent-settlement')
@@ -129,6 +133,36 @@ async function deepseekDefaultsServer(): Promise<DeepSeekDefaultsServer> {
   await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
   const address = server.address()
   if (address === null || typeof address === 'string') throw new Error('DeepSeek defaults snapshot server has no port')
+  return {
+    url: `http://127.0.0.1:${address.port}`,
+    requests,
+    close: () => new Promise(resolve => server.close(() => { resolve() })),
+  }
+}
+
+/**
+ * Answer every request the way a provider refuses an account a model it
+ * otherwise serves: HTTP 403 carrying the entitlement wording. The status is
+ * the point — classified by digits alone this would be `AUTH`, which reports a
+ * working credential as a broken one.
+ */
+async function modelNotEntitledServer(): Promise<DeepSeekDefaultsServer> {
+  const requests: JsonObject[] = []
+  const server = createServer((request: IncomingMessage, response: ServerResponse) => {
+    let body = ''
+    request.setEncoding('utf8')
+    request.on('data', (chunk: string) => { body += chunk })
+    request.on('end', () => {
+      requests.push(JSON.parse(body) as JsonObject)
+      response.writeHead(403, { 'content-type': 'application/json' })
+      response.end(JSON.stringify({
+        error: { message: 'Project `proj_snapshot` does not have access to model `deepseek-v4-flash`' },
+      }))
+    })
+  })
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve))
+  const address = server.address()
+  if (address === null || typeof address === 'string') throw new Error('entitlement snapshot server has no port')
   return {
     url: `http://127.0.0.1:${address.port}`,
     requests,
@@ -421,6 +455,83 @@ describe('headless stream-json snapshots', () => {
     const normalized = normalizeHeadlessStream(result.stdout, runCwd)
     if (refreshing) await writeFile(compactionStreamExpected, normalized)
     expect(normalized).toBe(await readFile(compactionStreamExpected, 'utf8'))
+  }, LOADER_SMOKE_TEST_TIMEOUT_MS)
+
+  it('classifies a 403 model-entitlement refusal as MODEL_NOT_ENTITLED, not AUTH', async () => {
+    // The credential is valid and the model is in the route's catalog; only the
+    // account lacks access. Reported as AUTH the operator is sent to rotate a
+    // working key, and the code would not qualify a delegated child for its
+    // fallback route.
+    const server = await modelNotEntitledServer()
+    const streamExpected = join(piAiEntitlementScenarioDir, 'stream-json.expected.jsonl')
+    let runCwd = ''
+    try {
+      const result = await runLoaderSmoke({
+        label: 'pi-ai model-entitlement headless stream-json snapshot',
+        tempDirPrefix: 'headless-snapshot-pi-ai-entitlement-',
+        binScript,
+        libBinScript: binScript,
+        configPath: piAiEntitlementConfigPath,
+        binArgs: [piAiEntitlementConfigPath, 'say pong'],
+        tsconfigPath,
+        env: {
+          DEEPSEEK_API_KEY: 'snapshot-key',
+          DSH_SNAPSHOT_BASE_URL: server.url,
+          NODE_OPTIONS: [process.env.NODE_OPTIONS, '--disable-warning=ExperimentalWarning'].filter(Boolean).join(' '),
+        },
+        prepare: (cwd) => { runCwd = cwd },
+      })
+
+      expect(result.stderr).toBe('')
+      const normalized = normalizeHeadlessStream(result.stdout, runCwd)
+      if (refreshing) await writeFile(streamExpected, normalized)
+      expect(normalized).toBe(await readFile(streamExpected, 'utf8'))
+      expect(normalized).toContain('"code":"MODEL_NOT_ENTITLED"')
+      expect(normalized).not.toContain('"code":"AUTH"')
+      // The code is outside the retryable set, so the refusal costs exactly one
+      // request rather than a backoff sequence against a route that cannot serve.
+      expect(server.requests).toHaveLength(1)
+    } finally {
+      await server.close()
+    }
+  }, LOADER_SMOKE_TEST_TIMEOUT_MS)
+
+  it('classifies a keyless pi-ai route as MISSING_CREDENTIAL, not the adapter catch-all', async () => {
+    // pi-ai raises its own `Provider is not configured` for a route whose
+    // credential store holds nothing, and flattens it to message text. Before
+    // classification that reached the caller as the catch-all PI_AI_ERROR,
+    // which no route-failure consumer can act on — a delegated child carrying
+    // it does not qualify for its fallback route.
+    const streamExpected = join(piAiKeylessScenarioDir, 'stream-json.expected.jsonl')
+    let runCwd = ''
+    const result = await runLoaderSmoke({
+      label: 'pi-ai keyless headless stream-json snapshot',
+      tempDirPrefix: 'headless-snapshot-pi-ai-keyless-',
+      binScript,
+      libBinScript: binScript,
+      configPath: piAiKeylessConfigPath,
+      binArgs: [piAiKeylessConfigPath, 'say pong'],
+      tsconfigPath,
+      env: {
+        // Same first-run posture as the adapter's own keyless scenario: no key
+        // in the environment, none under ./.dsh, and the route names no
+        // apiKeyEnv — so pi-ai's own auth resolution is what refuses it.
+        DEEPSEEK_API_KEY: '',
+        DEEPSEEK_BASE_URL: '',
+        NODE_OPTIONS: [process.env.NODE_OPTIONS, '--disable-warning=ExperimentalWarning'].filter(Boolean).join(' '),
+      },
+      prepare: (cwd) => { runCwd = cwd },
+    })
+
+    expect(result.stderr).toBe('')
+    const normalized = normalizeHeadlessStream(result.stdout, runCwd)
+    if (refreshing) await writeFile(streamExpected, normalized)
+    expect(normalized).toBe(await readFile(streamExpected, 'utf8'))
+    // The endpoint is never dialed, so the code is the whole product signal:
+    // pinning it here is what proves the assembled application, not just the
+    // classifier, reports a route a deployment cannot serve.
+    expect(normalized).toContain('"code":"MISSING_CREDENTIAL"')
+    expect(normalized).not.toContain('PI_AI_ERROR')
   }, LOADER_SMOKE_TEST_TIMEOUT_MS)
 
   it('logs actionable missing-credential guidance through the one-shot app', async () => {

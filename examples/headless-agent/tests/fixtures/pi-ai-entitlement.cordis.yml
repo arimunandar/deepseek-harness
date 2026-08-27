@@ -1,0 +1,33 @@
+# pi-ai route against a local endpoint that refuses the account this model.
+# The credential is present and valid, so the refusal is about entitlement
+# rather than authentication — the distinction this composition exists to pin.
+- id: base
+  name: '@deepseek-ai/cordis-plugin-include'
+  config:
+    path: ../../cordis.yml
+    patches:
+      - id: llm-deepseek
+        disabled: true
+      - insert:
+          - id: llm-pi-ai-entitlement
+            name: '@deepseek-ai/dsh-llm-pi-ai'
+            config:
+              providers:
+                deepseek:
+                  apiKeyEnv: DEEPSEEK_API_KEY
+                  baseURL: !!js process.env.DSH_SNAPSHOT_BASE_URL
+                  models:
+                    - id: deepseek-v4-flash
+                      contextWindow: 128000
+      - id: agent-spine
+        config:
+          agents:
+            - id: main
+              provider: deepseek
+              model: deepseek-v4-flash
+              cwd: !!js process.cwd()
+          workspaceContext: false
+          persona: 'pi-ai model-entitlement refusal snapshot.'
+      - id: persistence
+        config:
+          root: './.sessions'
