@@ -473,7 +473,6 @@ describe('headless stream-json snapshots', () => {
         env: {
           DEEPSEEK_API_KEY: 'snapshot-key',
           DSH_SNAPSHOT_BASE_URL: server.url,
-          NODE_OPTIONS: [process.env.NODE_OPTIONS, '--disable-warning=ExperimentalWarning'].filter(Boolean).join(' '),
         },
         prepare: (cwd) => { runCwd = cwd },
       })
@@ -514,7 +513,6 @@ describe('headless stream-json snapshots', () => {
         // apiKeyEnv — so pi-ai's own auth resolution is what refuses it.
         DEEPSEEK_API_KEY: '',
         DEEPSEEK_BASE_URL: '',
-        NODE_OPTIONS: [process.env.NODE_OPTIONS, '--disable-warning=ExperimentalWarning'].filter(Boolean).join(' '),
       },
       prepare: (cwd) => { runCwd = cwd },
     })
