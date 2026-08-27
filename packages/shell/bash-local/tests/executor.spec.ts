@@ -162,8 +162,12 @@ describe('LocalBashExecutor.start (background process handles)', () => {
   it('start returns immediately with a running handle that settles as completed', async () => {
     const { bash } = await setup()
     const before = Date.now()
-    const proc = bash.start(bash.resolve({ command: 'sleep 0.2; echo done' }))
-    expect(Date.now() - before).toBeLessThan(150)
+    // The sleep outlasts any realistic spawn latency, so returning while the
+    // child still sleeps proves start() does not wait for completion. The bound
+    // keeps the same margin over the sleep as the pwsh twin: a tighter one
+    // measures the host's spawn latency rather than this executor's behavior.
+    const proc = bash.start(bash.resolve({ command: 'sleep 1; echo done' }))
+    expect(Date.now() - before).toBeLessThan(500)
     expect(proc.status).toBe('running')
     await proc.done
     expect(proc.status).toBe('completed')
