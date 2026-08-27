@@ -1520,6 +1520,34 @@ describe('route fallback', () => {
     expect(provider.startedWith).toHaveLength(1)
   })
 
+  it('falls back for an entitlement refusal, the one qualifying code raised on a request', async () => {
+    // `MODEL_NOT_ENTITLED` is the default set's only member the provider raises
+    // by answering, rather than before anything is sent; empty output is what
+    // keeps starting the replacement a second attempt at the same task.
+    const { ctx, provider } = await setupFallback({
+      perStart: [
+        {
+          stopReason: 'error',
+          emptyOutput: true,
+          failure: {
+            message: 'Project `proj_abc` does not have access to model `gpt-5.3-codex`',
+            code: 'MODEL_NOT_ENTITLED',
+          },
+        },
+        { reply: 'fallback answer' },
+      ],
+    })
+
+    const result = await callSubagent(
+      ctx,
+      { description: 'probe', prompt: 'do it' },
+      { agent: recordingAgent([]) },
+    )
+
+    expect(text(result)).toBe('fallback answer')
+    expect(provider.startedWith).toEqual([primary, secondary])
+  })
+
   it('does not fall back for a child that produced output before failing', async () => {
     // Output is the only evidence the seam offers that the child acted, and a
     // child that acted must not be run again.

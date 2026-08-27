@@ -29,14 +29,14 @@ resolution 未被触动。在仅 OAuth 的路由上指定 `apiKeyEnv` 的 profil
 
 - **在 `resolveProfiles` 里拒绝无密钥的仅 OAuth 路由。** 这才是本仓库通常强制决策的位置，而目录过滤是一层 `cordis.yml` entry 可以绕过的表面。因上述启动行为被否决：已存储的 profile 会连带拖垮该 namespace 中其他所有路由，对一次发布而言，这是拿一个提供方的缺陷换取全体的缺陷。留下的缺口是：被修的是「提供」而不是「能力」——部署仍可手写一条页面上已经无法添加的路由。
 - **保留提供，只修正占位文案。** 那么该输入框只能写「此提供方需要本构建无法运行的登录」，等于一张唯一诚实内容就是「它不能用」的卡片。
-- **把 `Provider is not configured` 映射成具名 `LlmError`。** 值得做，而且触发原因本次改动并未消除——任何留空密钥、其提供方又在进程环境里找不到东西的 api-key 路由，都会产生同一句话。作为独立改动暂缓：它改进的是诊断，而不是移除一个坏掉的提供。
+- **把 `Provider is not configured` 映射成具名 `LlmError`。** 值得做，而且触发原因本次改动并未消除——任何留空密钥、其提供方又在进程环境里找不到东西的 api-key 路由，都会产生同一句话。作为独立改动暂缓：它改进的是诊断，而不是移除一个坏掉的提供。现已完成，见[路由失败分类](2026-08-27-pi-ai-route-failure-classification.zh.md)。
 - **把 `~/.codex/auth.json` 读进 pi-ai 的 `CredentialStore`。** 这能让 Codex 在没有登录流程的情况下可用，刷新也由 pi-ai 负责。但它为一个提供方把 harness 绑定到另一个工具的私有文件格式上，这属于 OAuth 那项工作的决策，而不是发布期的修复。
 
 ## 影响
 
 `openai-codex` 从提供方选择器、以及模型设置页所 join 的目录中消失；其余已安装提供方一概不受影响，包括在 api-key 方法*之外*另提供 OAuth 的那六个（`anthropic`、`github-copilot`、`kimi-coding`、`openrouter`、`radius`、`xai`），它们保留条目也保留密钥路径。将来若出现只带 OAuth 的提供方，会被自动排除，而不是靠列名。
 
-两处相邻缺口仍在，并记录在包 README 中：不指定凭据的路由仍走 catalog 提供方自带的发现，而它只读进程环境变量——不读 `~/.aws/credentials`，也不读 harness 凭据 seam——且由此产生的失败仍是兜底的 `PI_AI_ERROR`。
+两处相邻缺口仍在，并记录在包 README 中：不指定凭据的路由仍走 catalog 提供方自带的发现，而它只读进程环境变量——不读 `~/.aws/credentials`，也不读 harness 凭据 seam——且由此产生的失败现在是 `MISSING_CREDENTIAL`，而不再是兜底的 `PI_AI_ERROR`。
 
 该扣留其后已被撤销：[凭据记录与授权 flow](../architecture/2026-08-13-credential-records-and-authorization-flows.zh.md) 为适配器补上了可持久的凭据存储与登录 flow，因此 `openai-codex` 重新被提供，`catalogProviderTakesApiKey` 也已删除。下文那两条边界正是把这次反转限制在一个判定函数与一个目录过滤器之内的原因。
 

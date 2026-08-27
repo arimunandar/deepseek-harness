@@ -47,6 +47,17 @@ export const EMPTY_RESPONSE_CODE = 'EMPTY_RESPONSE'
  */
 export const INVALID_CREDENTIAL_CODE = 'INVALID_CREDENTIAL'
 
+/**
+ * Canonical provider-neutral code for a model the account is not permitted to
+ * use: the credential is valid and the model is in the route's catalog, but
+ * the provider refuses to serve that account this model. Distinct from
+ * `UNKNOWN_MODEL` because the fix differs: obtain access for the account or
+ * select a model it may use, rather than add a model to the route. Deliberately
+ * outside the default retryable set — an entitlement refusal is a property of
+ * the account, so it fails identically on every attempt.
+ */
+export const MODEL_NOT_ENTITLED_CODE = 'MODEL_NOT_ENTITLED'
+
 /** Structured codes and plain phrases that explicitly name a context bound being exceeded. */
 const STRUCTURED_CONTEXT_OVERFLOW = new RegExp(
   String.raw`(?:^|[^a-z0-9])context[\s_-](?:length|window)[\s_-]`

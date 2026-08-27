@@ -12,6 +12,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { AgentOptions } from '@deepseek-ai/dsh-agent'
+import { MODEL_NOT_ENTITLED_CODE } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import type { JsonValue } from '@deepseek-ai/dsh-session'
 import { assertSubagentMaxDepth, settleRun } from '@deepseek-ai/dsh-subagent'
@@ -55,22 +56,27 @@ export interface Config {
    * for a reason about the ROUTE rather than the task, and that child produced
    * nothing. Omission disables fallback entirely.
    *
-   * The narrow precondition is what makes a restart safe: a child refused
-   * before its first provider request has done no work, so repeating it cannot
-   * repeat an effect. See {@link fallbackOnCodes} for which failures qualify.
+   * The narrow precondition is what makes a restart safe: a child the route
+   * refused, having produced nothing, has done no work worth preserving, so
+   * repeating it repeats at most the one call the refusal answered. See
+   * {@link fallbackOnCodes} for which failures qualify.
    */
   fallbackAgentOptions?: AgentOptions
   /**
    * Failure codes that qualify for {@link fallbackAgentOptions}. The default set
-   * is the codes a route raises BEFORE any provider request happens, so a
-   * restart cannot repeat a side effect: `NO_ADAPTER` (no adapter for the
-   * route), `UNKNOWN_MODEL`, `MISSING_CREDENTIAL`, `INVALID_CREDENTIAL`, and
-   * `UNSUPPORTED_REASONING_EFFORT`.
+   * is the codes meaning the configured route cannot serve this deployment at
+   * all: `NO_ADAPTER` (no adapter for the route), `UNKNOWN_MODEL`,
+   * `MISSING_CREDENTIAL`, `INVALID_CREDENTIAL`, `UNSUPPORTED_REASONING_EFFORT`,
+   * and `MODEL_NOT_ENTITLED`. Each is deterministic for that route and never
+   * succeeds on a restart of the same one. All but `MODEL_NOT_ENTITLED` are
+   * raised before any provider request, so a restart repeats nothing; an
+   * entitlement refusal answers the first request, so a child that had called a
+   * tool and produced no assistant text would repeat that one call.
    *
    * A deployment may add mid-run codes such as `QUOTA`, `AUTH`, or
-   * `RATE_LIMIT`. Doing so accepts that a child which already called a tool can
-   * be started again and call it again: the seam reports no output for such a
-   * child, so nothing here can tell that case apart.
+   * `RATE_LIMIT`. Doing so accepts the same repeat for failures that can arrive
+   * at any point in a run: the seam reports no output for such a child, so
+   * nothing here can tell that case apart.
    */
   fallbackOnCodes?: string[]
   /**
@@ -128,9 +134,15 @@ export const Config: z<Config> = z.object({
 })
 
 /**
- * Codes a route raises before any provider request happens. A child that failed
- * on one of these never reached the network, so starting it again on another
- * route repeats nothing.
+ * Codes meaning the configured route cannot serve this deployment: they are
+ * deterministic for that route, never succeed on a restart of the same one, and
+ * cannot arise after the child produced output.
+ *
+ * Most are raised before any provider request, so a restart repeats nothing at
+ * all. `MODEL_NOT_ENTITLED` is the exception and widens the set deliberately —
+ * the provider refuses on the first request, so a child that had already called
+ * a tool and produced no assistant text would repeat that one tool call. The
+ * `output.length === 0` guard bounds the repeat to exactly that case.
  */
 const PRE_REQUEST_ROUTE_CODES: readonly string[] = [
   'NO_ADAPTER',
@@ -138,6 +150,7 @@ const PRE_REQUEST_ROUTE_CODES: readonly string[] = [
   'MISSING_CREDENTIAL',
   'INVALID_CREDENTIAL',
   'UNSUPPORTED_REASONING_EFFORT',
+  MODEL_NOT_ENTITLED_CODE,
 ]
 
 /**

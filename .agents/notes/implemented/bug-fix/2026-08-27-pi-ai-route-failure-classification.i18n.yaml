@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/bug-fix/2026-08-27-pi-ai-route-failure-classification.md
+2026-08-27-pi-ai-route-failure-classification.md: f6b53f3e5829d4c11fe4517b15855e5ea376a794
+2026-08-27-pi-ai-route-failure-classification.zh.md: 891a3160164b976b52775c0670b37d38daebe2ed
