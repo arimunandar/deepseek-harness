@@ -88,7 +88,21 @@ describe('copying a preset', () => {
     }
   })
 
-  it('keeps the source description but never its name or order', async () => {
+  it('drops a shipped source\'s description, which is localized copy rather than authored text', async () => {
+    // The fixture's system preset publishes a description, and every shipped
+    // preset's is the fallback behind display copy the reader chose the
+    // language of. Carrying it into a user preset would publish one fixed
+    // language in a surface that localizes.
+    await ctx.agentPresets.copy('standard', 'mine', 'My mode')
+
+    const metadata = await readFile(join(userRoot, 'mine', METADATA_FILE), 'utf8')
+    expect(metadata).toContain('name: My mode')
+    expect(metadata).not.toContain('description:')
+    expect((await ctx.agentPresets.list()).find(preset => preset.id === 'mine')?.description)
+      .toBeUndefined()
+  })
+
+  it('keeps an authored source description but never its name or order', async () => {
     await seedPreset(userRoot, 'source', { metadata: 'name: 源模式\ndescription: 只做检索。\norder: 1\n' })
 
     await ctx.agentPresets.copy('source', 'mine')

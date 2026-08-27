@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import { AttachmentId, ImageVariantId } from '@deepseek-ai/dsh-attachment'
 import type { AttachmentStore, ImageAttachmentRef, ImageRequestPolicy, RequestImageAttachment } from '@deepseek-ai/dsh-attachment'
-import { createUserMessage, CallId, CONTEXT_WINDOW_EXCEEDED_CODE, EMPTY_RESPONSE_CODE, createMessage } from '@deepseek-ai/dsh-llm'
+import { createUserMessage, CallId, CONTEXT_WINDOW_EXCEEDED_CODE, EMPTY_RESPONSE_CODE, createMessage, MODEL_NOT_ENTITLED_CODE } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock, StreamChunk } from '@deepseek-ai/dsh-llm'
 import type { AssistantMessage, AssistantMessageEvent, Usage } from '@earendil-works/pi-ai'
 import { toPiContext } from '../src/context.ts'
@@ -822,6 +822,37 @@ describe('mapStopReason / mapUsage', () => {
       stopReason: 'error',
       errorMessage: 'vector length limit exceeded',
     }))).toMatchObject({ kind: 'error', failure: { code: 'PI_AI_ERROR' } })
+  })
+
+  it('maps the two route refusals seen live, ahead of every status-digit test', () => {
+    // Both wordings verbatim from live runs on real accounts.
+    expect(mapStopReason(assistant({
+      stopReason: 'error',
+      errorMessage: 'Provider is not configured: anthropic',
+    }))).toMatchObject({ kind: 'error', failure: { code: 'MISSING_CREDENTIAL' } })
+    expect(mapStopReason(assistant({
+      stopReason: 'error',
+      errorMessage: 'Project `proj_abc` does not have access to model `gpt-5.3-codex`',
+    }))).toMatchObject({ kind: 'error', failure: { code: MODEL_NOT_ENTITLED_CODE } })
+    // A model id carrying a bare three-digit run would reach the `5\d\d` test.
+    expect(mapStopReason(assistant({
+      stopReason: 'error',
+      errorMessage: 'Project `proj_abc` does not have access to model `gpt-500-codex`',
+    }))).toMatchObject({ kind: 'error', failure: { code: MODEL_NOT_ENTITLED_CODE } })
+    // The status the provider actually answers with, were pi-ai ever to prefix it.
+    expect(mapStopReason(assistant({
+      stopReason: 'error',
+      errorMessage: '403: Project `proj_abc` does not have access to model `gpt-5.3-codex`',
+    }))).toMatchObject({ kind: 'error', failure: { code: MODEL_NOT_ENTITLED_CODE } })
+  })
+
+  it('keeps unrelated configuration and permission wording at the catch-all', () => {
+    // Guards the pair against `/not configured/i` and `/no access/i`, which a
+    // tool error's own text would trip.
+    expect(mapStopReason(assistant({ stopReason: 'error', errorMessage: 'tool configuration is not valid' })))
+      .toMatchObject({ kind: 'error', failure: { code: 'PI_AI_ERROR' } })
+    expect(mapStopReason(assistant({ stopReason: 'error', errorMessage: 'no access to /etc/hosts' })))
+      .toMatchObject({ kind: 'error', failure: { code: 'PI_AI_ERROR' } })
   })
 
   it.each([

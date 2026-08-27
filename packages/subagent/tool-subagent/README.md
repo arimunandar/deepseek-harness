@@ -27,6 +27,26 @@ A foreground call passes the execution signal through startup and execution, awa
 | `toolFilter` | Per-child global-tool restriction; requires `toolFilter` capability. |
 | `maxDepth` | Absolute delegation-depth cap, default `3` (`0` forbids delegation); a numeric cap requires the `depthLimit` capability and fails the mount without it. `'provider-managed'` sends no cap for an out-of-process provider whose budget belongs to the child harness. The tool stays visible at the cap; each attempted start checks the calling agent's current depth and returns an errored tool result when rejected. |
 
+## Route fallback
+
+`fallbackAgentOptions` names a second route to start ONE more child on when the first child's run failed for a reason about the route rather than the task, and that child produced nothing. There is no chain: a fallback that also fails is the result.
+
+Both conditions matter. The failure must name a qualifying `failure.code` — read from the structured failure, never from `diagnostic`, which is display text — and the child's `output` must be empty, which is the only evidence this seam offers that nothing happened before the failure.
+
+`fallbackOnCodes` defaults to the codes a route raises BEFORE any provider request: `NO_ADAPTER`, `UNKNOWN_MODEL`, `MISSING_CREDENTIAL`, `INVALID_CREDENTIAL`, `UNSUPPORTED_REASONING_EFFORT`. A child refused by one of those never reached the network, so starting it again repeats nothing. A deployment may add mid-run codes such as `QUOTA` or `RATE_LIMIT`, and thereby accepts that a child which already called a tool can be started again and call it again — an empty `output` cannot distinguish that case.
+
+Each substitution appends `subagent/fallback` to the delegating session before the replacement starts, naming the refused child, the failure code, and both routes. Without it nothing in the log says a first attempt happened: the replacement's own `request/header` records only the route it ran on.
+
+The model sees nothing of this. It called one tool and receives one result, from whichever child produced it.
+
+## Delegated usage
+
+A provider that can read its child's own token usage reports it on `SubagentResult.usage`, and a foreground call records it in the DELEGATING session's log as `subagent/usage`, attributed to the child id and the provider name. An out-of-process child owns no Session here, so that log is the only durable place its spend can land; an in-process child's own Session already carries its usage and its provider reports none, so nothing is counted twice.
+
+Recording happens before a failing result throws, so a run that spent tokens and then failed is still accounted for. Absence means UNMEASURED rather than zero — a provider whose protocol carries no usage appends nothing, and a reader must present that as a gap.
+
+The model sees none of this: the tool result is unchanged either way.
+
 ## Concurrency
 
 Foreground and background calls are concurrency-safe: sibling delegations in one assistant message overlap under the loop's rolling pool (`maxParallelToolCalls`), and results still commit in model order. Children work in their own sessions and a run never mutates the parent session; the one-shot background form's one parent-owned write — registering a Task — is a synchronous, commutative insertion that tolerates concurrent dispatch, so overlapping background calls acquire their job ids in dispatch-race order. Coordinating sibling workspace effects belongs to the model, exactly as it already does for background and continuable children. See the [parallel subagent Agent Note](../../../.agents/notes/implemented/feature/2026-08-09-parallel-subagent-delegations.md) and the [parallel tool-call Agent Note](../../../.agents/notes/implemented/feature/2026-07-10-parallel-tool-call-execution.md).

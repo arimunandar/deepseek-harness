@@ -1,0 +1,3 @@
+name: 团队模式
+description: 主导 Agent 将实现、评审与调研分派给三个角色子 Agent，每个角色运行各自配置的模型路由。
+order: 4

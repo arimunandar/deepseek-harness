@@ -13,6 +13,7 @@ import {
   type Query,
   type SDKMessage,
   type SDKResultMessage,
+  type SDKResultSuccess,
   type SpawnOptions,
 } from '@anthropic-ai/claude-agent-sdk'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
@@ -24,6 +25,7 @@ import {
   type SubagentRun,
   type SubagentStartRequest,
   type SubagentStopReason,
+  type SubagentReportedUsage,
 } from '@deepseek-ai/dsh-subagent'
 import {
   scrubbedParentEnv,
@@ -197,6 +199,54 @@ export function textTask(prompt: readonly ContentBlock[]): string {
 }
 
 /**
+ * Read the four disjoint token buckets from one successful SDK result, or
+ * report nothing when the result carries no usable usage.
+ *
+ * The SDK types declare `usage` as present on every success, but this value
+ * crossed a process boundary as JSON, so it is validated rather than trusted:
+ * a missing object or a non-finite bucket yields `undefined`, which the seam
+ * defines as unmeasured. Guessing zero would turn a decoding gap into a claim
+ * that the child was free.
+ *
+ * `modelUsage` keys name the models the run billed. A single-model run is the
+ * common case and its key is reported; a run naming none or several reports no
+ * model rather than attributing the whole run to one of them.
+ * @param message - a successful official SDK result message.
+ * @returns the token buckets to report, or undefined when none are readable.
+ */
+export function resultUsage(message: SDKResultSuccess): SubagentReportedUsage | undefined {
+  const usage: unknown = message.usage
+  if (typeof usage !== 'object' || usage === null) return undefined
+  const buckets = usage as Record<string, unknown>
+  const uncachedInputTokens = countOf(buckets.input_tokens)
+  const outputTokens = countOf(buckets.output_tokens)
+  if (uncachedInputTokens === undefined || outputTokens === undefined) return undefined
+  // Same process-boundary reason as `usage` above: the declared type says this
+  // object is present, but it arrived as decoded JSON.
+  const reported: unknown = message.modelUsage
+  const models = typeof reported === 'object' && reported !== null ? Object.keys(reported) : []
+  const model = models.length === 1 ? models[0] : undefined
+  return {
+    ...model === undefined ? {} : { model },
+    uncachedInputTokens,
+    // A null bucket means the category was not used, which is a real zero;
+    // an unreadable one is not, and disqualifies the whole report above.
+    cacheReadTokens: countOf(buckets.cache_read_input_tokens) ?? 0,
+    cacheWriteTokens: countOf(buckets.cache_creation_input_tokens) ?? 0,
+    outputTokens,
+  }
+}
+
+/**
+ * One non-negative finite token count, or undefined for anything else.
+ * @param value - a decoded JSON value from the child's usage report.
+ * @returns the count, or undefined when it is not one.
+ */
+function countOf(value: unknown): number | undefined {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : undefined
+}
+
+/**
  * Strictly derive the only SDK result that can complete a shared run.
  * @param message - an official discriminated result union.
  * @returns exact final text for a successful, non-error result.
@@ -237,6 +287,7 @@ export async function consumeClaudeQuery(
   onResult?: () => void,
 ): Promise<SubagentResult> {
   let answer: string | undefined
+  let usage: SubagentReportedUsage | undefined
   for await (const message of query) {
     if (message.type === 'system' && message.subtype === 'permission_denied') {
       onPermissionDenied?.()
@@ -245,6 +296,8 @@ export async function consumeClaudeQuery(
     if (message.type !== 'result') continue
     onResult?.()
     answer = successfulResult(message)
+    // Reached only for a success, which `successfulResult` has already proven.
+    usage = resultUsage(message as SDKResultSuccess)
   }
   if (answer === undefined) {
     throw new ClaudeCodeFailure({
@@ -254,6 +307,7 @@ export async function consumeClaudeQuery(
   }
   return {
     output: [{ type: 'text', text: answer }],
+    ...usage === undefined ? {} : { usage },
     stopReason: 'completed',
   }
 }

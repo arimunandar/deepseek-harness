@@ -12,10 +12,11 @@ import type { Context } from '@deepseek-ai/cordis'
 import z from '@deepseek-ai/schemastery'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { AgentOptions } from '@deepseek-ai/dsh-agent'
+import { MODEL_NOT_ENTITLED_CODE } from '@deepseek-ai/dsh-llm'
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import type { JsonValue } from '@deepseek-ai/dsh-session'
 import { assertSubagentMaxDepth, settleRun } from '@deepseek-ai/dsh-subagent'
-import type { SubagentProvider, SubagentResult, SubagentRun } from '@deepseek-ai/dsh-subagent'
+import type { SubagentProvider, SubagentReportedUsage, SubagentResult, SubagentRun } from '@deepseek-ai/dsh-subagent'
 import type { JobOutcome } from '@deepseek-ai/dsh-jobs'
 import type {} from '@deepseek-ai/dsh-system-prompt'
 
@@ -50,6 +51,34 @@ export interface Config {
    * Agent options applied to every child; omitted fields use child-loop defaults.
    */
   agentOptions?: AgentOptions
+  /**
+   * Second route to start one more child on when the first child's run failed
+   * for a reason about the ROUTE rather than the task, and that child produced
+   * nothing. Omission disables fallback entirely.
+   *
+   * The narrow precondition is what makes a restart safe: a child the route
+   * refused, having produced nothing, has done no work worth preserving, so
+   * repeating it repeats at most the one call the refusal answered. See
+   * {@link fallbackOnCodes} for which failures qualify.
+   */
+  fallbackAgentOptions?: AgentOptions
+  /**
+   * Failure codes that qualify for {@link fallbackAgentOptions}. The default set
+   * is the codes meaning the configured route cannot serve this deployment at
+   * all: `NO_ADAPTER` (no adapter for the route), `UNKNOWN_MODEL`,
+   * `MISSING_CREDENTIAL`, `INVALID_CREDENTIAL`, `UNSUPPORTED_REASONING_EFFORT`,
+   * and `MODEL_NOT_ENTITLED`. Each is deterministic for that route and never
+   * succeeds on a restart of the same one. All but `MODEL_NOT_ENTITLED` are
+   * raised before any provider request, so a restart repeats nothing; an
+   * entitlement refusal answers the first request, so a child that had called a
+   * tool and produced no assistant text would repeat that one call.
+   *
+   * A deployment may add mid-run codes such as `QUOTA`, `AUTH`, or
+   * `RATE_LIMIT`. Doing so accepts the same repeat for failures that can arrive
+   * at any point in a run: the seam reports no output for such a child, so
+   * nothing here can tell that case apart.
+   */
+  fallbackOnCodes?: string[]
   /**
    * Per-child persona that shadows `deployment:persona`. Requires the
    * provider's `persona` capability; omission preserves the deployment persona.
@@ -89,6 +118,12 @@ export const Config: z<Config> = z.object({
     model: z.string(),
     maxTokens: z.number().step(1).min(1).max(Number.MAX_SAFE_INTEGER),
   }).default(undefined as unknown as { provider: string; model: string; maxTokens: number }),
+  fallbackAgentOptions: z.object({
+    provider: z.string(),
+    model: z.string(),
+    maxTokens: z.number().step(1).min(1).max(Number.MAX_SAFE_INTEGER),
+  }).default(undefined as unknown as { provider: string; model: string; maxTokens: number }),
+  fallbackOnCodes: z.array(z.string()).default(undefined as unknown as string[]),
   persona: z.string(),
   // Preserve omission; Schemastery's `{ allow: [] }` default would deny every tool.
   toolFilter: z.object({
@@ -97,6 +132,44 @@ export const Config: z<Config> = z.object({
   }).default(undefined as unknown as { allow: string[]; deny: string[] }),
   maxDepth: z.union([z.natural().max(Number.MAX_SAFE_INTEGER), z.const('provider-managed' as const)]).default(3),
 })
+
+/**
+ * Codes meaning the configured route cannot serve this deployment: they are
+ * deterministic for that route, never succeed on a restart of the same one, and
+ * cannot arise after the child produced output.
+ *
+ * Most are raised before any provider request, so a restart repeats nothing at
+ * all. `MODEL_NOT_ENTITLED` is the exception and widens the set deliberately —
+ * the provider refuses on the first request, so a child that had already called
+ * a tool and produced no assistant text would repeat that one tool call. The
+ * `output.length === 0` guard bounds the repeat to exactly that case.
+ */
+const PRE_REQUEST_ROUTE_CODES: readonly string[] = [
+  'NO_ADAPTER',
+  'UNKNOWN_MODEL',
+  'MISSING_CREDENTIAL',
+  'INVALID_CREDENTIAL',
+  'UNSUPPORTED_REASONING_EFFORT',
+  MODEL_NOT_ENTITLED_CODE,
+]
+
+/**
+ * Whether one settled result qualifies for a fallback start.
+ *
+ * Three conditions, all necessary. The run failed; its structured failure names
+ * a qualifying code, read from `failure.code` rather than from display text;
+ * and the child produced no output, which is the only evidence the seam offers
+ * that nothing happened before the failure.
+ * @param result - the settled child result.
+ * @param codes - the qualifying failure codes.
+ * @returns true when one more start on the fallback route is safe.
+ */
+function qualifiesForFallback(result: SubagentResult, codes: readonly string[]): boolean {
+  if (result.stopReason !== 'error') return false
+  if (result.output.length > 0) return false
+  const code = result.failure?.code
+  return code !== undefined && codes.includes(code)
+}
 
 /** Render text blocks from the canonical JSON block array without trusting arbitrary values. */
 function outputValueText(values: JsonValue[]): string {
@@ -171,24 +244,24 @@ type ForegroundToolResult = {
 
 /**
  * Collect and release one foreground run without letting disposal replace an
- * independent result failure.
+ * independent result failure. A run whose child ended in an error still
+ * RETURNS here, so a caller can inspect the failure before deciding whether to
+ * convert it into an errored tool result; only an infrastructure fault — a
+ * rejected result or a failed disposal — throws.
+ * @param run - the published run to collect and dispose.
+ * @param recordUsage - records provider-reported delegated usage, called before
+ * anything can reject so a run that spent tokens and then failed is still
+ * accounted for.
+ * @returns the settled child result.
  */
-async function settleForegroundRun(run: SubagentRun): Promise<ForegroundToolResult> {
+async function collectForegroundRun(
+  run: SubagentRun,
+  recordUsage: (usage: SubagentReportedUsage) => void,
+): Promise<SubagentResult> {
   const [execution] = await Promise.allSettled([
-    run.result.then((result): ForegroundToolResult => {
-      const error = stopReasonError(result)
-      if (error !== undefined) {
-        // The registry converts this throw to isError; partial output is not
-        // success, but the preserved partial answer still reaches the parent.
-        throw new Error(withDiagnosticAndPartialText(error, result))
-      }
-      return {
-        kind: 'foreground',
-        runId: run.id,
-        // Content blocks already cross durable JSON boundaries elsewhere;
-        // the registry performs the authoritative lossless snapshot here.
-        output: result.output as unknown as JsonValue[],
-      }
+    run.result.then((result): SubagentResult => {
+      if (result.usage !== undefined) recordUsage(result.usage)
+      return result
     }),
   ])
   const [disposal] = await Promise.allSettled([Promise.resolve().then(() => run.dispose())])
@@ -203,6 +276,29 @@ async function settleForegroundRun(run: SubagentRun): Promise<ForegroundToolResu
   }
   if (disposal.status === 'rejected') throw disposal.reason
   return execution.value
+}
+
+/**
+ * Convert one settled child result into the canonical foreground tool result.
+ * @param result - the settled child result.
+ * @param runId - the run the result belongs to.
+ * @returns the canonical foreground result for a completed child.
+ * @throws for every other stop reason, which the registry renders as isError.
+ */
+function toForegroundToolResult(result: SubagentResult, runId: SubagentRun['id']): ForegroundToolResult {
+  const error = stopReasonError(result)
+  if (error !== undefined) {
+    // The registry converts this throw to isError; partial output is not
+    // success, but the preserved partial answer still reaches the parent.
+    throw new Error(withDiagnosticAndPartialText(error, result))
+  }
+  return {
+    kind: 'foreground',
+    runId,
+    // Content blocks already cross durable JSON boundaries elsewhere;
+    // the registry performs the authoritative lossless snapshot here.
+    output: result.output as unknown as JsonValue[],
+  }
 }
 
 /**
@@ -284,6 +380,9 @@ export function apply(ctx: Context, config: Config): void {
   const backgroundEnabled = config.enableRunInBackground !== false
   const continuable = (config.backgroundMode ?? 'one-shot') === 'continuable'
   const toolName = config.toolName ?? 'subagent'
+  // Resolved once: an omitted list means the pre-request codes, and an explicit
+  // empty list means a deployment deliberately disabled every qualifying code.
+  const fallbackCodes: readonly string[] = config.fallbackOnCodes ?? PRE_REQUEST_ROUTE_CODES
   // Mirror provider lifecycle because sibling load order and HMR replacement
   // can change provider availability while this fiber remains active.
   let disposeTool: (() => void) | undefined
@@ -431,11 +530,45 @@ export function apply(ctx: Context, config: Config): void {
           return { kind: 'background' as const, jobId: id }
         }
 
-        const run: SubagentRun = await ctx.subagents.start(config.provider, {
+        // An out-of-process child owns no Session here, so the delegating
+        // session's log is the only durable place its spend can land. An
+        // in-process child's own log already carries it, and the provider
+        // reports none for those, so this records nothing twice.
+        const recordUsage = (run: SubagentRun) => (usage: SubagentReportedUsage) => {
+          parent.session.append('subagent/usage', {
+            ...usage,
+            childId: run.id,
+            reportedBy: config.provider,
+          })
+        }
+        const first: SubagentRun = await ctx.subagents.start(config.provider, {
           ...request,
           signal: exec.signal,
         })
-        return settleForegroundRun(run)
+        const settled = await collectForegroundRun(first, recordUsage(first))
+        const fallback = config.fallbackAgentOptions
+        if (fallback === undefined || !qualifiesForFallback(settled, fallbackCodes)) {
+          return toForegroundToolResult(settled, first.id)
+        }
+        // The first child was refused before it could act, so this is one more
+        // attempt at the same task rather than a repeat of any work. A second
+        // failure is final: there is no chain, only a fallback.
+        parent.session.append('subagent/fallback', {
+          childId: first.id,
+          provider: config.provider,
+          failureCode: settled.failure?.code ?? 'UNKNOWN',
+          ...request.agentOptions === undefined ? {} : { from: request.agentOptions },
+          to: fallback,
+        })
+        const second: SubagentRun = await ctx.subagents.start(config.provider, {
+          ...request,
+          agentOptions: fallback,
+          signal: exec.signal,
+        })
+        return toForegroundToolResult(
+          await collectForegroundRun(second, recordUsage(second)),
+          second.id,
+        )
       },
     }))
   }

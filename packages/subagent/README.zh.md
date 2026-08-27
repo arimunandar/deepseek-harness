@@ -10,6 +10,7 @@
 | [`subagent-inprocess/`](subagent-in-process-driver/README.zh.md) | 提供共享的进程内运行驱动器 | 无 |
 | [`subagent-spawn-in-process/`](subagent-spawn-in-process/README.zh.md) | 启动全新的进程内子 agent | 注册到 `ctx.subagents` |
 | [`subagent-fork-in-process/`](subagent-fork-in-process/README.zh.md) | 从父 agent 已完成的历史记录启动进程内子 agent | 注册到 `ctx.subagents` |
+| [`subagent-worktree-in-process/`](subagent-worktree-in-process/README.zh.md) | 在自己的 git worktree 中启动全新的进程内子 agent | 注册到 `ctx.subagents` |
 | [`subagent-acp/`](subagent-acp/README.zh.md) | 通过 ACP（Agent Client Protocol）启动进程外子 agent | 注册到 `ctx.subagents` |
 | [`subagent-codex/`](subagent-codex/README.zh.md) | 启动真实的 Codex app-server 子 agent | 注册到 `ctx.subagents` |
 | [`subagent-claude-code/`](subagent-claude-code/README.zh.md) | 通过官方 Claude Agent SDK 启动真实的 Claude Code 子 agent | 注册到 `ctx.subagents` |

@@ -2439,6 +2439,30 @@ export interface Config {
 
 Source: [`packages/subagent/subagent-spawn-in-process/src/index.ts:25`](../packages/subagent/subagent-spawn-in-process/src/index.ts)
 
+<a id="deepseek-aidsh-subagent-worktree-in-process"></a>
+
+## `@deepseek-ai/dsh-subagent-worktree-in-process`
+
+Requires: `subagents` · `subprocess`
+
+```ts config-catalog
+/** Config: registry name, where worktrees live, and the git termination grace. */
+export interface Config {
+  /** Provider name on `ctx.subagents` (default `worktree`). */
+  providerName: string
+  /**
+   * Absolute directory each child's worktree is created under. Deployments
+   * differ on whether that belongs beside the repository, on another volume,
+   * or under a path their backup excludes, so there is no default.
+   */
+  root: string
+  /** Termination grace in milliseconds for each git invocation. */
+  gitGraceMs: number
+}
+```
+
+Source: [`packages/subagent/subagent-worktree-in-process/src/index.ts:42`](../packages/subagent/subagent-worktree-in-process/src/index.ts)
+
 <a id="deepseek-aidsh-subprocess-e2b"></a>
 
 ## `@deepseek-ai/dsh-subprocess-e2b`
@@ -2887,6 +2911,34 @@ export interface Config {
    */
   agentOptions?: AgentOptions
   /**
+   * Second route to start one more child on when the first child's run failed
+   * for a reason about the ROUTE rather than the task, and that child produced
+   * nothing. Omission disables fallback entirely.
+   *
+   * The narrow precondition is what makes a restart safe: a child the route
+   * refused, having produced nothing, has done no work worth preserving, so
+   * repeating it repeats at most the one call the refusal answered. See
+   * {@link fallbackOnCodes} for which failures qualify.
+   */
+  fallbackAgentOptions?: AgentOptions
+  /**
+   * Failure codes that qualify for {@link fallbackAgentOptions}. The default set
+   * is the codes meaning the configured route cannot serve this deployment at
+   * all: `NO_ADAPTER` (no adapter for the route), `UNKNOWN_MODEL`,
+   * `MISSING_CREDENTIAL`, `INVALID_CREDENTIAL`, `UNSUPPORTED_REASONING_EFFORT`,
+   * and `MODEL_NOT_ENTITLED`. Each is deterministic for that route and never
+   * succeeds on a restart of the same one. All but `MODEL_NOT_ENTITLED` are
+   * raised before any provider request, so a restart repeats nothing; an
+   * entitlement refusal answers the first request, so a child that had called a
+   * tool and produced no assistant text would repeat that one call.
+   *
+   * A deployment may add mid-run codes such as `QUOTA`, `AUTH`, or
+   * `RATE_LIMIT`. Doing so accepts the same repeat for failures that can arrive
+   * at any point in a run: the seam reports no output for such a child, so
+   * nothing here can tell that case apart.
+   */
+  fallbackOnCodes?: string[]
+  /**
    * Per-child persona that shadows `deployment:persona`. Requires the
    * provider's `persona` capability; omission preserves the deployment persona.
    */
@@ -2917,7 +2969,7 @@ export interface Config {
 
 Depends on: [`AgentOptions`](subsystems/core.md)
 
-Source: [`packages/subagent/tool-subagent/src/index.ts:29`](../packages/subagent/tool-subagent/src/index.ts)
+Source: [`packages/subagent/tool-subagent/src/index.ts:30`](../packages/subagent/tool-subagent/src/index.ts)
 
 <a id="deepseek-aidsh-tool-subagent-report"></a>
 

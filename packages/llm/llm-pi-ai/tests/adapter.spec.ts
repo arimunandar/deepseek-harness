@@ -9,7 +9,7 @@ import type {
   SaveImageAttachment,
   StoredImageAttachment,
 } from '@deepseek-ai/dsh-attachment'
-import LlmRuntime, { createUserMessage, CONTEXT_WINDOW_EXCEEDED_CODE, LlmError, ReasoningEffortId, userAgent } from '@deepseek-ai/dsh-llm'
+import LlmRuntime, { createUserMessage, CONTEXT_WINDOW_EXCEEDED_CODE, LlmError, MODEL_NOT_ENTITLED_CODE, ReasoningEffortId, userAgent } from '@deepseek-ai/dsh-llm'
 import * as LlmPiAi from '@deepseek-ai/dsh-llm-pi-ai'
 import { PiAiAdapter } from '@deepseek-ai/dsh-llm-pi-ai'
 import { MAX_TIMER_DELAY_MS } from '@deepseek-ai/dsh-timeout'
@@ -364,6 +364,24 @@ describe('PiAiAdapter provider routing', () => {
     const ctx = await harness(server.url)
     const result = await assemble(ctx, { model: 'deepseek-v4-flash', messages: [] })
     expect(result.finish).toMatchObject({ kind: 'error', failure: { code } })
+    expect(server.paths).toEqual(['/chat/completions'])
+  })
+
+  it('maps a model-entitlement refusal to MODEL_NOT_ENTITLED, not the 403 status', async () => {
+    // The wording and status a real OpenAI project answers with for a model it
+    // is not permitted to use. The credential works, so classifying by status
+    // would tell the operator to rotate a valid key.
+    const server = await mockServer([{
+      status: 403,
+      body: JSON.stringify({
+        error: { message: 'Project `proj_abc` does not have access to model `gpt-5.3-codex`' },
+      }),
+    }])
+    const ctx = await harness(server.url)
+
+    const result = await assemble(ctx, { model: 'deepseek-v4-flash', messages: [] })
+
+    expect(result.finish).toMatchObject({ kind: 'error', failure: { code: MODEL_NOT_ENTITLED_CODE } })
     expect(server.paths).toEqual(['/chat/completions'])
   })
 

@@ -125,6 +125,7 @@ If a saved default names a provider that was deleted, the composer displays **Se
 
 - **`MISSING_CREDENTIAL`** — Store the provider key through the Models page or supply the referenced environment variable.
 - **`UNKNOWN_MODEL`** — Select a configured model or add the missing model to the custom provider.
+- **`MODEL_NOT_ENTITLED`** — The key works and the route serves the model, but the account is not permitted to use it. Request access for the account or project, or select a model it may use; adding the model to the route changes nothing.
 - **Fetching available models returns 401** — Check the key. Model discovery calls the OpenAI-compatible `GET /models` endpoint; enter models manually for endpoints that do not provide it.
 - **The gateway refuses every request although the key and URL are right** — Its request shape differs from OpenAI's. Start with `compat.supportsDeveloperRole: false` and `compat.maxTokensField: max_tokens` on the route.
 - **Only reasoning models fail** — pi-ai sends their system prompt as the `developer` role, which the gateway rejects. Set `compat.supportsDeveloperRole: false`.

@@ -370,6 +370,18 @@
       config:
         providerName: fork
 
+    # Workspace isolation, not another transport: a worktree child is a fresh
+    # in-process child like `spawn`, in its own git checkout, so two children
+    # working at once cannot write the same file. `root` has no default —
+    # whether worktrees belong beside the repository, on another volume, or
+    # under a backup-excluded path is a deployment choice — so this layer names
+    # one under the harness home and a deployment overrides it there.
+    - id: subagent-worktree-in-process
+      name: '@deepseek-ai/dsh-subagent-worktree-in-process'
+      config:
+        providerName: worktree
+        root: !!js dshHomePath('worktrees')
+
     # Continuable background children are selected per delegation tool. The
     # separately loaded follow-up tool registers the one global `send_message`.
     - id: tool-subagent-control

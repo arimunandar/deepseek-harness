@@ -11,10 +11,11 @@
 
 import type { Agent, AgentOptions } from '@deepseek-ai/dsh-agent'
 import type { Branded } from '@deepseek-ai/dsh-brand'
-import type { ContentBlock } from '@deepseek-ai/dsh-llm'
+import type { ContentBlock, LlmFailure } from '@deepseek-ai/dsh-llm'
 import type { SessionEvent, SessionId } from '@deepseek-ai/dsh-session'
 import type { ObjectJsonSchema, ToolRestriction } from '@deepseek-ai/dsh-tools'
 import type { SubagentDescriptorData } from './descriptor.ts'
+import type { SubagentReportedUsage } from './usage.ts'
 
 /** Identifies one accepted subagent run across its lifecycle event pair. */
 export type SubagentRunId = Branded<'SubagentRunId'>
@@ -240,6 +241,23 @@ export interface SubagentResult {
    * to 4096 UTF-8 bytes. Consumers present it separately from {@link output}.
    */
   readonly diagnostic?: string
+  /**
+   * Token usage the child reported for its own model requests, when its
+   * protocol reports any. Absence means UNMEASURED, never zero: an
+   * out-of-process child's requests happen in another harness, and a provider
+   * whose protocol carries no usage appends nothing rather than guessing. The
+   * delegation Consumer records a present value as `subagent/usage` in the
+   * delegating session's log.
+   */
+  readonly usage?: SubagentReportedUsage
+  /**
+   * The structured failure that ended a run whose `stopReason` is `error`, when
+   * the child's turn recorded one. Present so a Consumer can route on
+   * `failure.code` instead of parsing {@link diagnostic}, which is safe display
+   * text and not a machine surface. Absent for every other stop reason, and for
+   * an `error` a provider could not attribute to one failure.
+   */
+  readonly failure?: LlmFailure
   /** Why the run ended. A non-`completed` reason means `output` may be partial. */
   readonly stopReason: SubagentStopReason
 }

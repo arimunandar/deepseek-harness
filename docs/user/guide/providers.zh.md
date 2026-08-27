@@ -125,6 +125,7 @@ llm-pi-ai:
 
 - **`MISSING_CREDENTIAL`**：通过模型页存储提供方密钥，或提供被引用的环境变量。
 - **`UNKNOWN_MODEL`**：选择已配置的模型，或向自定义提供方添加缺失的模型。
+- **`MODEL_NOT_ENTITLED`**：密钥可用，路由也服务该模型，但账户无权使用它。为该账户或项目申请访问权限，或选择它可以使用的模型；把该模型加进路由不会有任何改变。
 - **获取可用模型返回 401**：检查密钥。模型发现会调用 OpenAI 兼容的 `GET /models` 端点；对于不提供该端点的服务，请手动输入模型。
 - **密钥与地址都正确，网关却拒绝每一个请求**：它的请求形状与 OpenAI 不同。先在路由上设 `compat.supportsDeveloperRole: false` 与 `compat.maxTokensField: max_tokens`。
 - **只有推理模型失败**：pi-ai 把它们的系统提示词以 `developer` 角色发出，而网关拒绝该角色。设 `compat.supportsDeveloperRole: false`。

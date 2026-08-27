@@ -8,7 +8,7 @@
  * @module dsh-llm-pi-ai/stream
  */
 
-import { CallId, CONTEXT_WINDOW_EXCEEDED_CODE, EMPTY_RESPONSE_CODE, isContextWindowExceededError, isQuotaExceededError, LlmError, QUOTA_EXCEEDED_CODE } from '@deepseek-ai/dsh-llm'
+import { CallId, CONTEXT_WINDOW_EXCEEDED_CODE, EMPTY_RESPONSE_CODE, isContextWindowExceededError, isQuotaExceededError, LlmError, MODEL_NOT_ENTITLED_CODE, QUOTA_EXCEEDED_CODE } from '@deepseek-ai/dsh-llm'
 import type { FinishReason, StreamChunk, TokenUsage } from '@deepseek-ai/dsh-llm'
 import { isContextOverflow } from '@earendil-works/pi-ai'
 import type { AssistantMessage, AssistantMessageEvent, Usage as PiUsage } from '@earendil-works/pi-ai'
@@ -37,6 +37,22 @@ export function mapUsage(usage: PiUsage): TokenUsage {
 // If pi-ai ever forwards the original Error (or a fetch/dispatcher hook that lets
 // us capture the cause ourselves), classify on `code`/`cause` instead of text.
 function classifyPiAiError(message: string): string {
+  // The two route refusals below are matched before every status-digit test.
+  // They are the most specific wordings pi-ai emits, and they are digit-free, so
+  // a project id or model name carrying a bare three-digit run would otherwise
+  // decide them, and an upstream release that begins prefixing the HTTP status
+  // would silently move the second one to `AUTH`.
+  //
+  // pi-ai's `resolveProviderAuth` throws `ModelsError('auth', 'Provider is not
+  // configured: <route>')` when nothing in the collection's credential store
+  // answers for the route. Nothing was sent and no credential was stored, which
+  // is what `MISSING_CREDENTIAL` names at the adapter's own resolution site.
+  if (/\bProvider is not configured\b/i.test(message)) return 'MISSING_CREDENTIAL'
+  // A provider refusing one account a model it otherwise serves, flattened here
+  // from that provider's 403 body (`Project \`proj_…\` does not have access to
+  // model \`gpt-5.3-codex\``). The credential is usable and the model is in the
+  // route's catalog, so neither `AUTH` nor `UNKNOWN_MODEL` describes the fix.
+  if (/\bdoes not have access to (?:the )?model\b/i.test(message)) return MODEL_NOT_ENTITLED_CODE
   if (/\b(?:401|403)\b/.test(message)) return 'AUTH'
   if (isQuotaExceededError(message)) return QUOTA_EXCEEDED_CODE
   if (/\b429\b|rate.?limit/i.test(message)) return 'RATE_LIMIT'

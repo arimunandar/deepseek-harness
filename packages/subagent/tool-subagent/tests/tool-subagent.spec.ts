@@ -1367,3 +1367,251 @@ describe('depth budget configuration', () => {
     expect(requests[0]?.toolFilter).toBeUndefined()
   })
 })
+
+describe('delegated usage recording', () => {
+  const usage = {
+    model: 'claude-sonnet-4-5',
+    uncachedInputTokens: 120,
+    cacheReadTokens: 500,
+    cacheWriteTokens: 7,
+    outputTokens: 34,
+  }
+
+  /** A parent whose session records what the tool appends to it. */
+  function recordingAgent(appended: { type: string; data: unknown }[]): Agent {
+    return {
+      id: SessionId('parent-usage'),
+      session: {
+        append: (type: string, data: unknown) => { appended.push({ type, data }) },
+      },
+    } as unknown as Agent
+  }
+
+  it('records a reported usage in the delegating session, attributed to the run', async () => {
+    const appended: { type: string; data: unknown }[] = []
+    const ctx = await setup({ provider: 'mock' }, { usage })
+
+    const result = await callSubagent(
+      ctx,
+      { description: 'probe', prompt: 'do it' },
+      { agent: recordingAgent(appended) },
+    )
+
+    // The delegating session is the only durable place an out-of-process
+    // child's spend can land, so this is where a total has to find it.
+    expect(appended).toHaveLength(1)
+    expect(appended[0]?.type).toBe('subagent/usage')
+    expect(appended[0]?.data).toMatchObject({ ...usage, reportedBy: 'mock' })
+    expect((appended[0]?.data as { childId?: unknown }).childId).toBeDefined()
+    // Recording is invisible to the model: the tool result is unchanged.
+    expect(text(result)).toBe('scripted subagent reply')
+  })
+
+  it('appends nothing when the provider reports no usage', async () => {
+    // Absence is UNMEASURED, and an event carrying zeros would read as free.
+    const appended: { type: string; data: unknown }[] = []
+    const ctx = await setup({ provider: 'mock' })
+
+    await callSubagent(ctx, { description: 'probe', prompt: 'do it' }, { agent: recordingAgent(appended) })
+
+    expect(appended).toEqual([])
+  })
+
+  it('records usage for a run that spent tokens and then failed', async () => {
+    const appended: { type: string; data: unknown }[] = []
+    const ctx = await setup({ provider: 'mock' }, { usage, stopReason: 'error' })
+
+    // The registry converts the stop-reason throw into an errored tool result.
+    const failed = await callSubagent(
+      ctx,
+      { description: 'probe', prompt: 'do it' },
+      { agent: recordingAgent(appended) },
+    )
+    expect(failed.isError).toBe(true)
+
+    // The child billed for the work it did before failing; dropping that would
+    // under-report exactly the runs worth noticing.
+    expect(appended).toHaveLength(1)
+    expect(appended[0]?.type).toBe('subagent/usage')
+  })
+})
+
+describe('route fallback', () => {
+  const refused = { message: 'no adapter registered for provider "openai"', code: 'NO_ADAPTER' }
+  const primary = { provider: 'openai', model: 'gpt-5.3-codex' }
+  const secondary = { provider: 'anthropic', model: 'claude-sonnet-4-5' }
+
+  /** A parent whose session records what the tool appends to it. */
+  function recordingAgent(appended: { type: string; data: unknown }[]): Agent {
+    return {
+      id: SessionId('parent-fallback'),
+      session: {
+        append: (type: string, data: unknown) => { appended.push({ type, data }) },
+      },
+    } as unknown as Agent
+  }
+
+  /**
+   * Mount the tool over an observable scripted provider.
+   * @param script - the child script, including per-start overrides.
+   * @param toolOver - tool config overrides; `withoutFallback` drops the
+   * fallback route entirely, which `exactOptionalPropertyTypes` will not let a
+   * caller express as an explicit `undefined`.
+   */
+  async function setupFallback(
+    script: Partial<mock.Config>,
+    toolOver: Partial<tool.Config> & { withoutFallback?: boolean } = {},
+  ) {
+    const { withoutFallback, ...over } = toolOver
+    const ctx = new Context()
+    await ctx.plugin(SystemPrompt)
+    await ctx.plugin(ToolRuntime)
+    await ctx.plugin(SubagentRuntime)
+    const provider = await mock.mountObservableScriptedProvider(ctx, { name: 'mock', ...script })
+    await ctx.plugin(tool, {
+      provider: 'mock',
+      agentOptions: primary,
+      ...withoutFallback === true ? {} : { fallbackAgentOptions: secondary },
+      ...over,
+    })
+    return { ctx, provider }
+  }
+
+  it('starts one more child on the fallback route and returns its answer', async () => {
+    const appended: { type: string; data: unknown }[] = []
+    const { ctx, provider } = await setupFallback({
+      perStart: [
+        { stopReason: 'error', emptyOutput: true, failure: refused },
+        { reply: 'fallback answer' },
+      ],
+    })
+
+    const result = await callSubagent(
+      ctx,
+      { description: 'probe', prompt: 'do it' },
+      { agent: recordingAgent(appended) },
+    )
+
+    expect(text(result)).toBe('fallback answer')
+    // Two starts, and the second names the fallback route rather than repeating
+    // the one that was refused.
+    expect(provider.startedWith).toHaveLength(2)
+    expect(provider.startedWith[0]).toEqual(primary)
+    expect(provider.startedWith[1]).toEqual(secondary)
+    // The substitution is durable, because nothing else in the log says the
+    // first attempt happened at all.
+    expect(appended.filter(e => e.type === 'subagent/fallback')).toHaveLength(1)
+    expect(appended.find(e => e.type === 'subagent/fallback')?.data)
+      .toMatchObject({ provider: 'mock', failureCode: 'NO_ADAPTER', from: primary, to: secondary })
+  })
+
+  it('does not fall back for a code outside the qualifying set', async () => {
+    // `SERVER` is retryable on the same route; substituting the route would
+    // hide a transient fault behind a different vendor's bill.
+    const { ctx, provider } = await setupFallback({
+      stopReason: 'error',
+      emptyOutput: true,
+      failure: { message: 'upstream unavailable', code: 'SERVER' },
+    })
+
+    const failed = await callSubagent(ctx, { description: 'probe', prompt: 'do it' })
+
+    expect(failed.isError).toBe(true)
+    expect(provider.startedWith).toHaveLength(1)
+  })
+
+  it('falls back for an entitlement refusal, the one qualifying code raised on a request', async () => {
+    // `MODEL_NOT_ENTITLED` is the default set's only member the provider raises
+    // by answering, rather than before anything is sent; empty output is what
+    // keeps starting the replacement a second attempt at the same task.
+    const { ctx, provider } = await setupFallback({
+      perStart: [
+        {
+          stopReason: 'error',
+          emptyOutput: true,
+          failure: {
+            message: 'Project `proj_abc` does not have access to model `gpt-5.3-codex`',
+            code: 'MODEL_NOT_ENTITLED',
+          },
+        },
+        { reply: 'fallback answer' },
+      ],
+    })
+
+    const result = await callSubagent(
+      ctx,
+      { description: 'probe', prompt: 'do it' },
+      { agent: recordingAgent([]) },
+    )
+
+    expect(text(result)).toBe('fallback answer')
+    expect(provider.startedWith).toEqual([primary, secondary])
+  })
+
+  it('does not fall back for a child that produced output before failing', async () => {
+    // Output is the only evidence the seam offers that the child acted, and a
+    // child that acted must not be run again.
+    const { ctx, provider } = await setupFallback({
+      stopReason: 'error',
+      reply: 'partial work',
+      failure: refused,
+    })
+
+    const failed = await callSubagent(ctx, { description: 'probe', prompt: 'do it' })
+
+    expect(failed.isError).toBe(true)
+    expect(provider.startedWith).toHaveLength(1)
+  })
+
+  it('does not fall back when no fallback route is configured', async () => {
+    const { ctx, provider } = await setupFallback(
+      { stopReason: 'error', emptyOutput: true, failure: refused },
+      { withoutFallback: true },
+    )
+
+    const failed = await callSubagent(ctx, { description: 'probe', prompt: 'do it' })
+
+    expect(failed.isError).toBe(true)
+    expect(provider.startedWith).toHaveLength(1)
+  })
+
+  it('reports the fallback child\'s own failure when it fails too', async () => {
+    // A fallback that also fails is final: there is no chain.
+    const { ctx, provider } = await setupFallback({
+      perStart: [
+        { stopReason: 'error', emptyOutput: true, failure: refused },
+        { stopReason: 'error', emptyOutput: true, failure: { message: 'nope', code: 'MISSING_CREDENTIAL' } },
+      ],
+    })
+
+    const failed = await callSubagent(
+      ctx,
+      { description: 'probe', prompt: 'do it' },
+      { agent: recordingAgent([]) },
+    )
+
+    expect(failed.isError).toBe(true)
+    expect(provider.startedWith).toHaveLength(2)
+  })
+
+  it('honours an explicit qualifying-code list', async () => {
+    const { ctx, provider } = await setupFallback(
+      {
+        perStart: [
+          { stopReason: 'error', emptyOutput: true, failure: { message: 'out of credit', code: 'QUOTA' } },
+          { reply: 'fallback answer' },
+        ],
+      },
+      { fallbackOnCodes: ['QUOTA'] },
+    )
+
+    const result = await callSubagent(
+      ctx,
+      { description: 'probe', prompt: 'do it' },
+      { agent: recordingAgent([]) },
+    )
+
+    expect(text(result)).toBe('fallback answer')
+    expect(provider.startedWith).toHaveLength(2)
+  })
+})
