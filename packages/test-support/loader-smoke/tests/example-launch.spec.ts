@@ -53,6 +53,31 @@ describe('resolveExampleLaunch', () => {
     expect(env.TSX_TSCONFIG_PATH).toBe(TSCONFIG)
   })
 
+  it('suppresses Node experimental warnings in both modes', () => {
+    // A snapshot asserting clean child stderr would otherwise read Node's own
+    // `node:sqlite` warning as agent output.
+    for (const mode of ['src', 'lib'] as const) {
+      const { env } = resolveExampleLaunch({ srcBin: SRC_BIN, mode, tsconfigPath: TSCONFIG })
+      expect(env.NODE_OPTIONS).toContain('--disable-warning=ExperimentalWarning')
+    }
+  })
+
+  it('keeps a caller NODE_OPTIONS beside the suppression, without repeating it', () => {
+    const { env } = resolveExampleLaunch({
+      srcBin: SRC_BIN,
+      mode: 'lib',
+      env: { NODE_OPTIONS: '--max-old-space-size=512' },
+    })
+    expect(env.NODE_OPTIONS).toBe('--max-old-space-size=512 --disable-warning=ExperimentalWarning')
+
+    const already = resolveExampleLaunch({
+      srcBin: SRC_BIN,
+      mode: 'lib',
+      env: { NODE_OPTIONS: '--disable-warning=ExperimentalWarning' },
+    })
+    expect(already.env.NODE_OPTIONS).toBe('--disable-warning=ExperimentalWarning')
+  })
+
   it('src mode: throws without a tsconfig path', () => {
     expect(() => resolveExampleLaunch({ srcBin: SRC_BIN, mode: 'src' })).toThrow(/needs tsconfigPath/)
   })

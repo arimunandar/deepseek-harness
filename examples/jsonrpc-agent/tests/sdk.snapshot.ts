@@ -286,7 +286,6 @@ async function runScenario(scenario: SdkScenario): Promise<{
     DSH_SESSION_ROOT: sessionsRoot,
     DSH_CWD: cwd,
     DSH_SNAPSHOT: mode,
-    NODE_OPTIONS: [process.env.NODE_OPTIONS, '--disable-warning=ExperimentalWarning'].filter(Boolean).join(' '),
     ...parentFixture === undefined ? {} : {
       DSH_SNAPSHOT_FILE: parentFixture,
       ...childFixtures.length > 0 ? { DSH_SNAPSHOT_CHILD_FILES: childFixtures.join(delimiter) } : {},

@@ -53,6 +53,12 @@ export function resolveExampleMode(raw: string | undefined = process.env[EXAMPLE
   }
 }
 
+/**
+ * Silences Node's own experimental-module warnings in a spawned example.
+ * Scoped to that one warning class so any other stderr output still surfaces.
+ */
+const SUPPRESS_EXPERIMENTAL_WARNING = '--disable-warning=ExperimentalWarning'
+
 /** Inputs to {@link resolveExampleLaunch}. */
 export interface ExampleLaunchOptions {
   /** Absolute path to the example bin's TypeScript source entry (`<pkg>/src/bin.ts`); the `lib` bin is derived from it. */
@@ -75,7 +81,7 @@ export interface ExampleLaunch {
   readonly command: string
   /** Node flags, the resolved bin, then the caller's `configArgs`. */
   readonly args: string[]
-  /** Mode-specific environment (`TSX_TSCONFIG_PATH` in `src`, nothing added in `lib`) layered over the caller's `env`. */
+  /** Mode-specific environment (`TSX_TSCONFIG_PATH` in `src`) plus the shared `NODE_OPTIONS`, layered over the caller's `env`. */
   readonly env: NodeJS.ProcessEnv
 }
 
@@ -108,6 +114,18 @@ export function resolveExampleLaunch(options: ExampleLaunchOptions): ExampleLaun
   const mode = options.mode ?? resolveExampleMode()
   const configArgs = options.configArgs ?? []
   const env: NodeJS.ProcessEnv = { ...options.env }
+
+  // Node prints its own `ExperimentalWarning` for the built-in modules the
+  // product uses (`node:sqlite` at time of writing) to the child's stderr,
+  // where a snapshot asserting clean stderr reads it as agent output. Suppress
+  // it for every spawned example so the assertion stays a statement about the
+  // application. Only this one class is silenced; a real warning still lands.
+  // The base keeps whatever NODE_OPTIONS the caller or the environment already
+  // set, because the spawned env layers over `process.env`.
+  const inheritedNodeOptions = env.NODE_OPTIONS ?? process.env.NODE_OPTIONS
+  env.NODE_OPTIONS = inheritedNodeOptions?.includes(SUPPRESS_EXPERIMENTAL_WARNING) === true
+    ? inheritedNodeOptions
+    : [inheritedNodeOptions, SUPPRESS_EXPERIMENTAL_WARNING].filter(Boolean).join(' ')
 
   if (mode === 'src') {
     if (options.tsconfigPath === undefined) {

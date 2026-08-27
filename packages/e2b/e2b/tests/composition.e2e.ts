@@ -130,9 +130,6 @@ describe.skipIf(!process.env.E2B_API_KEY)('E2B live Loader composition', () => {
       libBinScript: binScript,
       configPath,
       tsconfigPath,
-      env: {
-        NODE_OPTIONS: [process.env.NODE_OPTIONS, '--disable-warning=ExperimentalWarning'].filter(Boolean).join(' '),
-      },
       processTimeoutMs: 180_000,
       inspect: async (cwd) => {
         for (const name of ['from-fs.txt', 'from-bash.txt', 'multibyte # file.ts', 'fixture-lsp.mjs']) {
